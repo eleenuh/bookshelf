@@ -95,6 +95,17 @@ button { cursor: pointer; }
   flex-direction: column;
   align-items: flex-start;
   gap: 40px;
+
+  /* Sticky: the left column scrolls normally until it reaches 64px from the top of the window,
+     then stays there while the books keep scrolling. align-self: start stops the grid from
+     stretching the column to the full page height (a full-height column would have nowhere to stick).
+     If the column is taller than the window, it gets its own scrollbar so nothing is cut off. */
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  scrollbar-width: none; /* hide that scrollbar; the column still scrolls with the mouse wheel */
 }
 
 /* ---------- Left column ---------- */
@@ -437,7 +448,8 @@ input::placeholder { color: #9a958c; font-style: italic; }
     padding-top: 40px;
   }
 
-  .side { gap: 28px; }
+  /* On phones the left column sits above the books, so it scrolls away normally instead of sticking */
+  .side { gap: 28px; position: static; max-height: none; overflow: visible; }
 
   /* The year sits above its books */
   .year-label { flex-basis: 100%; flex-direction: row; align-items: baseline; gap: 12px; }
