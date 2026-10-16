@@ -1,0 +1,508 @@
+/* app.js — everything that moves.
+ *
+ * 1. Fetch goodreads.csv and parse it with Papa Parse.
+ * 2. Clean each row into a tidy book object, and split them into "read" and "currently reading".
+ * 3. Draw the books in sections (one per year when ordered by date), "reading now",
+ *    and the stats pop-up with its year chart, and redraw the books when a filter changes.
+ *
+ * All text from the CSV goes into the page with textContent, never innerHTML,
+ * so nothing in a title or review can ever be run as HTML.
+ */
+
+const CSV_URL = "goodreads.csv";
+const NO_DATE = "none"; // the bucket for books without a Date Read
+
+// Everything the user can change lives in one object. render() reads it and redraws.
+const state = {
+  books: [],       // every "read" book, parsed once at startup
+  reading: [],     // books on the "currently-reading" shelf
+  query: "",       // search box text
+  sort: "recent",  // a key of SORTERS below
+  minRating: 0,    // 0 = everything
+  year: null,      // null = all years, otherwise a year number or NO_DATE (set by the chart)
+};
+
+const $ = (selector) => document.querySelector(selector);
+
+// ---------- 1. Loading and cleaning the data ----------
+
+async function loadBooks() {
+  const response = await fetch(CSV_URL);
+  if (!response.ok) throw new Error(`${CSV_URL} returned HTTP ${response.status}`);
+  const text = await response.text();
+
+  // header: true -> each row becomes an object keyed by column name, e.g. row["Title"]
+  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+  if (parsed.errors.length) console.warn("CSV parse problems:", parsed.errors);
+
+  return parsed.data.map(toBook); // every shelf; init() splits them into read and currently-reading
+}
+
+// Turn one raw CSV row (all strings) into a book with proper numbers and dates.
+function toBook(row) {
+  return {
+    id: (row["Book Id"] || "").trim(),
+    shelf: (row["Exclusive Shelf"] || "").trim(), // "read", "currently-reading" or "to-read"
+    title: (row["Title"] || "").trim() || "Untitled",
+    author: (row["Author"] || "").trim() || "Unknown author",
+    authorSort: (row["Author l-f"] || row["Author"] || "").trim(), // "Weir, Andy" sorts by surname
+    isbn13: cleanIsbn(row["ISBN13"]),
+    coverUrl: (row["Cover URL"] || "").trim(), // Goodreads' cover, added by scripts/update_books.py
+    rating: Number(row["My Rating"]) || 0,
+    readCount: Number(row["Read Count"]) || 1, // more than 1 for rereads (see rereads.csv)
+    pages: Number(row["Number of Pages"]) || null,
+    year: Number(row["Original Publication Year"]) || Number(row["Year Published"]) || null,
+    dateRead: parseDate(row["Date Read"]),
+    dateAdded: parseDate(row["Date Added"]),
+    review: cleanReview(row["My Review"]),
+  };
+}
+
+// Goodreads writes ISBNs as ="9780593135204" so spreadsheets keep the leading zeros.
+function cleanIsbn(value) {
+  return String(value || "").replace(/[="\s]/g, "");
+}
+
+// "2023/05/14" -> a Date, or null when empty.
+// new Date(year, monthIndex, day) uses local time; new Date("2023-05-14") would use UTC
+// and can show up as the 13th in timezones west of Greenwich.
+function parseDate(value) {
+  const match = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(String(value || "").trim());
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+// Reviews can contain <br /> and the odd <i> or &amp;. We want plain text with real line breaks.
+function cleanReview(value) {
+  const withNewlines = String(value || "").replace(/<br\s*\/?>/gi, "\n");
+  // DOMParser builds an inert, off-screen document: no scripts run and no images load.
+  // Its textContent drops any leftover tags and decodes entities like &amp; into &.
+  const doc = new DOMParser().parseFromString(withNewlines, "text/html");
+  return doc.body.textContent.trim();
+}
+
+// ---------- 2. Small helpers ----------
+
+// Create an element with an optional class and text in one line.
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+const yearRead = (book) => (book.dateRead ? book.dateRead.getFullYear() : NO_DATE);
+const time = (date) => (date ? date.getTime() : 0); // missing dates sort as oldest
+const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+
+// "Oct 4" when the year is already in the section heading, "Oct 4, 2023" otherwise
+function shortDate(date, withYear) {
+  const options = withYear ? { month: "short", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" };
+  return date.toLocaleDateString(undefined, options);
+}
+
+// How many times a book was read, in words: 1 -> "once", 2 -> "twice", 3 -> "3 times"
+function timesInWords(n) {
+  return n === 1 ? "once" : n === 2 ? "twice" : `${n} times`;
+}
+
+// 1 -> "first", 2 -> "second" … for labelling each read of a reread book
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+const ordinal = (n) => ORDINALS[n - 1] || `${n}th`;
+
+// A reread book appears once per read (scripts/update_books.py adds a row for each earlier read).
+// Give each copy its place in the order: readNumber 1 = the first time, 2 = the second, and so on.
+function numberReads(books) {
+  const byBook = new Map();
+  for (const book of books) {
+    const key = book.id || book; // books without an id are never grouped together
+    if (!byBook.has(key)) byBook.set(key, []);
+    byBook.get(key).push(book);
+  }
+  for (const reads of byBook.values()) {
+    if (reads.length < 2) continue;
+    reads.sort((a, b) => time(a.dateRead) - time(b.dateRead)); // oldest first (undated counts as oldest)
+    reads.forEach((book, i) => {
+      book.readNumber = i + 1;
+      book.readCount = Math.max(book.readCount, reads.length);
+    });
+  }
+}
+
+// One copy of each book, for the stats, so a reread isn't counted as two books
+function uniqueBooks(books) {
+  return [...new Map(books.map((book) => [book.id || book, book])).values()];
+}
+
+function longDate(date) {
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Same title -> same number, so a book's placeholder colour never changes between visits.
+function hashText(text) {
+  let hash = 0;
+  for (const ch of text) hash = (hash * 31 + ch.codePointAt(0)) % 360;
+  return hash;
+}
+
+// ---------- 3. Filtering, sorting and grouping ----------
+
+// Each sorter compares two books: negative = a first, positive = b first.
+// `||` chains a tie-breaker: it's only used when the first comparison gives 0.
+const SORTERS = {
+  recent: (a, b) => time(b.dateRead) - time(a.dateRead) || time(b.dateAdded) - time(a.dateAdded),
+  rating: (a, b) => b.rating - a.rating || SORTERS.recent(a, b),
+  title: (a, b) => a.title.localeCompare(b.title),
+  author: (a, b) => a.authorSort.localeCompare(b.authorSort) || a.title.localeCompare(b.title),
+  pages: (a, b) => (b.pages || 0) - (a.pages || 0),
+};
+
+// The heading shown beside the books when they're NOT ordered by date (so not split into years)
+const SORT_HEADINGS = {
+  rating: "Favourites first",
+  title: "A to Z",
+  author: "By author",
+  pages: "Longest first",
+};
+
+function getVisibleBooks() {
+  const query = state.query.trim().toLowerCase();
+  return state.books
+    .filter((b) => !query || b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query))
+    .filter((b) => b.rating >= state.minRating)
+    .filter((b) => state.year === null || yearRead(b) === state.year)
+    .sort(SORTERS[state.sort]); // filter() made a new array, so this doesn't reorder state.books
+}
+
+// Split the (already sorted) books into sections.
+// Ordered by date: one section per year, newest first, books with no date at the end.
+// Any other order: one section holding everything.
+function groupBooks(books) {
+  if (state.sort !== "recent") {
+    return [{ heading: SORT_HEADINGS[state.sort], books, byYear: false }];
+  }
+  const groups = new Map(); // a Map remembers insertion order, and the books are already newest first
+  for (const book of books) {
+    const key = yearRead(book);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(book);
+  }
+  return [...groups].map(([key, booksInYear]) => ({
+    heading: key === NO_DATE ? "Undated" : String(key),
+    books: booksInYear,
+    byYear: key !== NO_DATE,
+  }));
+}
+
+// ---------- 4. Building pieces of the page ----------
+
+// Rating as five dots: ●●●●○. Unrated books say so in words instead.
+function createDots(rating) {
+  if (!rating) return el("span", "dots unrated", "not rated yet");
+  const dots = el("span", "dots", "●".repeat(rating) + "○".repeat(5 - rating));
+  dots.setAttribute("role", "img");
+  dots.setAttribute("aria-label", `${rating} out of 5`); // screen readers say this instead of "black circle black circle…"
+  return dots;
+}
+
+// Colours for books without a cover image: a background and a matching text colour.
+const TONES = [
+  { bg: "#efb3c4", ink: "#3a1f28" }, // pink
+  { bg: "#17130f", ink: "#d9b26a" }, // near-black with gold
+  { bg: "#2a2616", ink: "#e6cf7a" }, // olive with yellow
+  { bg: "#e06d2c", ink: "#3a1a0c" }, // orange
+  { bg: "#b8873a", ink: "#3a2a12" }, // ochre
+  { bg: "#3b5a3e", ink: "#e8e0c8" }, // green
+];
+
+// A plain coloured cover with the title and author printed on it.
+function createPlaceholder(book) {
+  const tone = TONES[hashText(book.title) % TONES.length];
+  const placeholder = el("span", "cover-placeholder");
+  placeholder.style.backgroundColor = tone.bg;
+  placeholder.style.color = tone.ink;
+  placeholder.append(el("span", "ph-title", book.title), el("span", "ph-author", book.author));
+  return placeholder;
+}
+
+// Cover fallback chain: covers/<id>.jpg -> Goodreads' cover -> Open Library by ISBN -> coloured placeholder.
+// Each time an image fails to load, the "error" event fires and we try the next source.
+function createCover(book) {
+  const wrapper = el("span", "cover");
+  const sources = [];
+  if (book.id) sources.push(`covers/${book.id}.jpg`);
+  if (book.coverUrl) sources.push(book.coverUrl);
+  // ?default=false makes Open Library return a 404 instead of a blank image, so "error" fires
+  if (book.isbn13) sources.push(`https://covers.openlibrary.org/b/isbn/${book.isbn13}-L.jpg?default=false`);
+
+  if (!sources.length) {
+    wrapper.append(createPlaceholder(book));
+    return wrapper;
+  }
+
+  const img = document.createElement("img");
+  img.loading = "lazy"; // set before src: only download once the book nears the screen
+  img.decoding = "async";
+  img.alt = ""; // decorative: the title is printed right next to it
+  let attempt = 0;
+  img.addEventListener("error", () => {
+    attempt += 1;
+    if (attempt < sources.length) img.src = sources[attempt];
+    else img.replaceWith(createPlaceholder(book));
+  });
+  img.src = sources[0];
+  wrapper.append(img);
+  return wrapper;
+}
+
+// One book: the cover, then title, author, rating dots, a line of the review and the date.
+// The date is created separately (book.dateLine) because its wording depends on the section.
+function createEntry(book) {
+  // A <button> makes the whole entry clickable, focusable with Tab and openable with Enter/Space.
+  const entry = el("button", "entry");
+  entry.type = "button";
+
+  const info = el("span", "entry-info");
+  info.append(el("span", "entry-title", book.title), el("span", "author", book.author), createDots(book.rating));
+  // Only the start of the review: CSS cuts it off after three lines. The full text is in the detail view.
+  if (book.review) info.append(el("span", "entry-review", book.review));
+  book.dateLine = el("span", "entry-date");
+  info.append(book.dateLine);
+
+  entry.append(createCover(book), info);
+  entry.addEventListener("click", () => openDetail(book));
+  return entry;
+}
+
+// ---------- 5. Rendering ----------
+
+function render() {
+  const visible = getVisibleBooks();
+  renderStatus(visible);
+  renderShelf(visible);
+  updateChartSelection();
+}
+
+function renderShelf(books) {
+  const sections = groupBooks(books).map((group) => {
+    const section = el("section", "year");
+
+    const label = el("div", "year-label");
+    label.append(
+      el("h2", group.byYear ? "year-heading" : "year-heading is-text", group.heading),
+      el("span", "year-count", plural(group.books.length, "book")),
+    );
+
+    const list = el("ul", "year-books");
+    for (const book of group.books) {
+      // Each entry is built the first time it's needed and then reused (book.item).
+      // Reusing it means a cover that already loaded, or already fell back to a placeholder,
+      // isn't downloaded again on every keystroke in the search box.
+      if (!book.item) {
+        book.item = el("li");
+        book.item.append(createEntry(book));
+      }
+      // Inside a year section the year is in the heading, so "finished Oct 4" is enough
+      let dateText = book.dateRead ? `finished ${shortDate(book.dateRead, !group.byYear)}` : "date not recorded";
+      // Rereads: "· first read", "· second read" on each copy. A book with a read count but only
+      // one copy (e.g. from a manual Goodreads export) says "· read twice" instead.
+      if (book.readNumber) dateText += ` · ${ordinal(book.readNumber)} read`;
+      else if (book.readCount > 1) dateText += ` · read ${timesInWords(book.readCount)}`;
+      book.dateLine.textContent = dateText;
+      list.append(book.item);
+    }
+
+    section.append(label, list);
+    return section;
+  });
+
+  $("#shelf").replaceChildren(...sections);
+}
+
+// Fills in the numbers in the stats pop-up. Called once at startup with every book, so these are all-time numbers.
+// Each book counts once, however many times it was read.
+function renderStats(allReads) {
+  const books = uniqueBooks(allReads);
+  const rated = books.filter((b) => b.rating > 0); // unrated books shouldn't drag the average to 0
+  const pages = books.reduce((sum, b) => sum + (b.pages || 0), 0);
+  const average = rated.length ? (rated.reduce((sum, b) => sum + b.rating, 0) / rated.length).toFixed(1) : "–";
+
+  $("#stat-books").textContent = books.length.toLocaleString();
+  $("#stat-pages").textContent = pages.toLocaleString();
+  $("#stat-authors").textContent = new Set(books.map((b) => b.author)).size.toLocaleString();
+  $("#stat-rating").textContent = rated.length ? `${average} of 5` : average;
+  $("#stat-loved").textContent = books.filter((b) => b.rating === 5).length.toLocaleString();
+}
+
+function renderStatus(visible) {
+  const total = state.books.length;
+  let text = visible.length === total ? plural(total, "book") : `Showing ${visible.length} of ${plural(total, "book")}`;
+  if (state.year === NO_DATE) text += ", undated";
+  else if (state.year !== null) text += `, read in ${state.year}`;
+  if (!visible.length) text = "No books match.";
+
+  $("#status").textContent = text;
+  $("#clear-filters").hidden = !(state.query || state.minRating || state.year !== null);
+}
+
+// The chart is built once from all books; render() only updates which bar is selected.
+function buildChart() {
+  const chart = $("#chart");
+  const counts = new Map();
+  for (const book of state.books) {
+    const key = yearRead(book);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  if (!counts.size) return;
+
+  // Every year from first to last, including years with zero books, so gaps are visible.
+  const years = [...counts.keys()].filter((key) => key !== NO_DATE);
+  const keys = [];
+  if (years.length) {
+    for (let y = Math.min(...years); y <= Math.max(...years); y++) keys.push(y);
+  }
+  if (counts.has(NO_DATE)) keys.push(NO_DATE);
+
+  const max = Math.max(...counts.values());
+  for (const key of keys) {
+    const count = counts.get(key) || 0;
+    const label = key === NO_DATE ? "?" : `’${String(key).slice(2)}`; // 2023 -> ’23, to keep the bars narrow
+
+    const bar = el("button", "bar");
+    bar.type = "button";
+    bar.dataset.year = key;
+    bar.disabled = count === 0;
+    bar.style.setProperty("--value", count / max); // CSS turns this into the bar height
+    bar.setAttribute("aria-pressed", "false");
+    bar.setAttribute("aria-label", `${key === NO_DATE ? "No date" : key}: ${plural(count, "book")}`);
+    bar.title = bar.getAttribute("aria-label"); // tooltip on hover
+    bar.append(el("span", "bar-fill"), el("span", "bar-label", label));
+
+    bar.addEventListener("click", () => {
+      state.year = state.year === key ? null : key; // click the selected year again to clear it
+      $("#stats").close(); // close the pop-up so you see the filtered books straight away
+      render();
+    });
+    chart.append(bar);
+  }
+}
+
+function updateChartSelection() {
+  const chart = $("#chart");
+  chart.classList.toggle("has-selection", state.year !== null);
+  for (const bar of chart.querySelectorAll(".bar")) {
+    bar.setAttribute("aria-pressed", String(bar.dataset.year === String(state.year)));
+  }
+}
+
+// Books on the currently-reading shelf, each with a small cover. Built once at startup.
+function renderReading() {
+  const items = state.reading.map((book) => {
+    const button = el("button", "mini-book");
+    button.type = "button";
+    const text = el("span");
+    text.append(el("span", "mini-title", book.title), el("span", "author", book.author));
+    button.append(createCover(book), text);
+    button.addEventListener("click", () => openDetail(book));
+    const li = el("li");
+    li.append(button);
+    return li;
+  });
+  $("#reading-list").replaceChildren(...items);
+  $("#reading-entry").hidden = !items.length;
+}
+
+function openDetail(book) {
+  $("#detail-cover").replaceChildren(createCover(book));
+  $("#detail-title").textContent = book.title;
+  $("#detail-author").textContent = book.author;
+  $("#detail-rating").replaceChildren(createDots(book.rating));
+  $("#detail-read").textContent = book.shelf === "currently-reading"
+    ? "still reading"
+    : book.dateRead ? longDate(book.dateRead) : "not recorded";
+  let times = timesInWords(book.readCount);
+  if (book.readNumber) times += ` (this was the ${ordinal(book.readNumber)})`;
+  $("#detail-times").textContent = book.shelf === "currently-reading" ? "reading now" : times;
+  $("#detail-pages").textContent = book.pages ? book.pages.toLocaleString() : "unknown";
+  // Very old books have negative years in Goodreads (-600 means 600 BC)
+  $("#detail-year").textContent = !book.year ? "unknown" : book.year < 0 ? `${-book.year} BC` : book.year;
+
+  const review = $("#detail-review");
+  review.textContent = book.review || "Nothing written yet.";
+  review.classList.toggle("empty", !book.review);
+
+  const link = $("#detail-link");
+  link.hidden = !book.id;
+  link.href = `https://www.goodreads.com/book/show/${encodeURIComponent(book.id)}`;
+
+  $("#detail").showModal();
+}
+
+function showLoadError(error) {
+  const status = $("#status");
+  const hint = location.protocol === "file:"
+    ? "Browsers block fetch() on pages opened straight from a file. Start a local server (see README.md) and open http://localhost:8000."
+    : "Check that goodreads.csv sits next to index.html.";
+  status.textContent = `Couldn't load your books (${error.message}). ${hint}`;
+  status.classList.add("error");
+  console.error(error);
+}
+
+// ---------- 6. Wiring it all together ----------
+
+function wireControls() {
+  $("#search").addEventListener("input", (event) => {
+    state.query = event.target.value;
+    render();
+  });
+  $("#sort").addEventListener("change", (event) => {
+    state.sort = event.target.value;
+    render();
+  });
+  $("#min-rating").addEventListener("change", (event) => {
+    state.minRating = Number(event.target.value);
+    render();
+  });
+  $("#clear-filters").addEventListener("click", () => {
+    state.query = "";
+    state.minRating = 0;
+    state.year = null;
+    $("#search").value = "";
+    $("#min-rating").value = "0";
+    render();
+  });
+
+  $("#open-stats").addEventListener("click", () => {
+    $("#stats").showModal();
+    const chart = $("#chart");
+    chart.scrollLeft = chart.scrollWidth; // if there are many years, start scrolled to the latest
+  });
+
+  // Close a pop-up when the backdrop around it is clicked.
+  for (const dialog of document.querySelectorAll("dialog")) {
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+}
+
+async function init() {
+  let allBooks;
+  try {
+    allBooks = await loadBooks();
+  } catch (error) {
+    showLoadError(error);
+    return;
+  }
+  state.books = allBooks.filter((b) => b.shelf === "read");
+  numberReads(state.books);
+  state.reading = allBooks.filter((b) => b.shelf === "currently-reading");
+
+  wireControls();
+  renderStats(state.books);
+  renderReading();
+  buildChart();
+  render();
+}
+
+init();

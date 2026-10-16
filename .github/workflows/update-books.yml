@@ -1,0 +1,41 @@
+# Keeps goodreads.csv in step with Goodreads, automatically.
+#
+# Every 6 hours (and whenever rereads.csv is changed) GitHub starts a fresh computer,
+# downloads this repository, runs scripts/update_books.py, and if goodreads.csv changed,
+# saves (commits) it back.
+# That commit makes GitHub Pages republish the site with the new books.
+
+name: Update books from Goodreads
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"  # every 6 hours, at 17 minutes past (UTC)
+  workflow_dispatch:        # adds a "Run workflow" button on GitHub, for updating right away
+  push:
+    paths:
+      - rereads.csv         # also run straight away whenever you change rereads.csv
+
+permissions:
+  contents: write           # allows the job to commit the new goodreads.csv
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the repository
+        uses: actions/checkout@v4
+
+      - name: Rebuild goodreads.csv from the Goodreads feeds
+        run: python3 scripts/update_books.py
+
+      - name: Save goodreads.csv if anything changed
+        run: |
+          if git diff --quiet -- goodreads.csv; then
+            echo "No changes since the last update."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add goodreads.csv
+          git commit -m "Update books from Goodreads"
+          git push

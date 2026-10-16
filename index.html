@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Elina's Bookshelf</title>
+  <!-- Font from Google Fonts: EB Garamond, a classic book typeface, used for everything -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <!-- Papa Parse turns CSV text into JavaScript objects. The version is pinned so it never changes under us.
+       "defer" means: download now, but run only after the HTML is parsed, in the order listed. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <!-- Left column: who you are, what you're reading now, and the search and filters -->
+    <aside class="side" aria-label="About and filters">
+      <div class="intro">
+        <h1>Elina's<br>Bookshelf</h1>
+        <p>Every book I've finished, in the order I read them. Feel free to look around!</p>
+      </div>
+
+      <!-- Filled in by app.js. Stays hidden if your currently-reading shelf is empty. -->
+      <section id="reading-entry" hidden>
+        <h2 class="small-label">Reading now</h2>
+        <ul id="reading-list" class="reading-list"></ul>
+      </section>
+
+      <div class="filters">
+        <label class="find">
+          <span class="small-label">Find</span>
+          <input type="search" id="search" placeholder="a title or an author" autocomplete="off">
+        </label>
+
+        <!-- Two small dropdowns, one line each -->
+        <label class="filter">
+          <span class="filter-label">Order by</span>
+          <select id="sort">
+            <option value="recent">when I read it</option>
+            <option value="rating">how much I liked it</option>
+            <option value="title">title</option>
+            <option value="author">author</option>
+            <option value="pages">longest first</option>
+          </select>
+        </label>
+
+        <label class="filter">
+          <span class="filter-label">Show</span>
+          <select id="min-rating">
+            <option value="0">everything</option>
+            <option value="3">three dots and up</option>
+            <option value="4">four dots and up</option>
+            <option value="5">only the loved ones</option>
+          </select>
+        </label>
+
+        <p class="status-line">
+          <span id="status" class="status" role="status">Loading books…</span>
+          <button type="button" id="clear-filters" class="link" hidden>show everything</button>
+        </p>
+      </div>
+
+      <button type="button" id="open-stats" class="stats-button">reading stats</button>
+    </aside>
+
+    <!-- The books, grouped into sections (one per year when ordered by date). app.js builds these. -->
+    <main id="shelf" class="shelf"></main>
+  </div>
+
+  <!-- Both pop-ups are <dialog> elements, which give us a real modal for free:
+       keyboard focus stays inside, Esc closes it, and there's a backdrop. -->
+
+  <!-- Reading stats pop-up -->
+  <dialog id="stats" class="dialog" aria-labelledby="stats-title">
+    <div class="dialog-inner">
+      <form method="dialog"><button class="close">close</button></form>
+      <h2 id="stats-title" class="dialog-title">Reading stats</h2>
+
+      <!-- app.js fills in the numbers -->
+      <dl class="stats">
+        <dt>Books</dt><dd id="stat-books">–</dd>
+        <dt>Pages</dt><dd id="stat-pages">–</dd>
+        <dt>Authors</dt><dd id="stat-authors">–</dd>
+        <dt>Average</dt><dd id="stat-rating">–</dd>
+        <dt>Loved</dt><dd id="stat-loved">–</dd>
+      </dl>
+
+      <section aria-labelledby="chart-heading">
+        <h3 id="chart-heading" class="small-label">Books per year · tap a year to see those books</h3>
+        <div id="chart" class="chart"></div>
+      </section>
+    </div>
+  </dialog>
+
+  <!-- Book detail pop-up -->
+  <dialog id="detail" class="dialog detail" aria-labelledby="detail-title">
+    <div class="dialog-inner">
+      <form method="dialog"><button class="close">close</button></form>
+      <div class="detail-top">
+        <div id="detail-cover"></div>
+        <div class="detail-info">
+          <h2 id="detail-title" class="dialog-title"></h2>
+          <p id="detail-author" class="author"></p>
+          <div id="detail-rating"></div>
+          <dl class="facts">
+            <dt>Finished</dt><dd id="detail-read"></dd>
+            <dt>Times read</dt><dd id="detail-times"></dd>
+            <dt>Pages</dt><dd id="detail-pages"></dd>
+            <dt>Published</dt><dd id="detail-year"></dd>
+          </dl>
+          <a id="detail-link" class="link" target="_blank" rel="noopener">see it on Goodreads</a>
+        </div>
+      </div>
+      <section class="review">
+        <h3 class="small-label">What I thought</h3>
+        <p id="detail-review"></p>
+      </section>
+    </div>
+  </dialog>
+</body>
+</html>

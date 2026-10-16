@@ -1,0 +1,468 @@
+/* style.css — all the visuals.
+   A reading journal: one classic serif (EB Garamond), a quiet left column, and the books grouped
+   under big grey year headings. Each book has its cover (with a spine shadow so it looks like a
+   real book), then the title, author, rating dots, a line from the review and the date finished.
+   Colours live in CSS variables on :root, so changing a colour means changing it in one place. */
+
+:root {
+  --bg: #ffffff;
+  --text: #1c1b19;
+  --text-soft: #4a4741;  /* intro paragraph, review lines */
+  --author: #6f6a62;
+  --muted: #8b867d;      /* small labels, unselected options */
+  --faint: #a29d94;      /* dates */
+  --year: #b5afa5;       /* the big year numbers */
+  --line: #e6e2db;       /* light hairlines */
+  --accent: #7a2e1f;     /* deep red: rating dots, hover, selected */
+
+  --cover-w: 200px;      /* every cover is this wide (the "bigger" size from the design) */
+  --serif: "EB Garamond", Garamond, "Times New Roman", serif;
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Make the "hidden" attribute always win, even over elements styled with display: flex */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: 19px;
+  line-height: 1.5;
+  font-variant-numeric: oldstyle-nums; /* numbers that sit in the text like lowercase letters, as in old books */
+}
+
+/* Stop the page behind a pop-up from scrolling while it's open */
+body:has(dialog[open]) { overflow: hidden; }
+
+/* No built-in margins; spacing is added deliberately instead */
+h1, h2, h3, p, ul, dl, dd { margin: 0; }
+h1, h2, h3 { font-weight: 400; }
+ul { padding: 0; list-style: none; }
+
+/* Buttons and fields use the page font instead of the browser's default */
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+:focus-visible { outline: 1px solid var(--accent); outline-offset: 4px; }
+
+/* Small spaced-out capitals used for every label */
+.small-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: lining-nums;
+}
+
+/* Text that acts as a link or button: italic and underlined */
+.link {
+  padding: 0;
+  color: var(--author);
+  background: none;
+  border: 0;
+  font-size: 17px;
+  font-style: italic;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:hover { color: var(--accent); }
+
+.author { display: block; color: var(--author); font-style: italic; }
+
+/* ---------- Page layout ----------
+   Two columns: the left column and the books on the right. On phones they stack. */
+
+.page {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 40px clamp(40px, 6vw, 112px);
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 64px clamp(20px, 4.5vw, 72px) 120px;
+}
+
+.shelf { min-width: 0; }
+
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+/* ---------- Left column ---------- */
+
+.intro { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+h1 { font-size: 38px; line-height: 1.1; }
+.intro p { color: var(--text-soft); }
+
+/* Find box, then the two small dropdowns, then how many books are showing */
+.filters { display: flex; flex-direction: column; gap: 10px; width: 100%; font-size: 17px; }
+
+.find { display: block; margin-bottom: 6px; }
+
+/* "Order by [when I read it]": a grey label and a dropdown that looks like underlined text */
+.filter { display: flex; align-items: baseline; gap: 10px; }
+.filter-label { color: var(--muted); }
+
+.filter select {
+  min-width: 0;
+  padding: 0 2px 1px 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #d9d5ce;
+  border-radius: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.filter select:focus { outline: none; border-bottom-color: var(--accent); }
+
+.find input {
+  width: 100%;
+  padding: 4px 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #d9d5ce;
+  border-radius: 0;
+  font-size: 17px;
+}
+
+.find input:focus { outline: none; border-bottom-color: var(--accent); }
+input::placeholder { color: #9a958c; font-style: italic; }
+
+.status-line { margin-top: 4px; color: var(--muted); font-size: 16px; font-style: italic; }
+.status.error { color: var(--accent); font-style: normal; }
+.status-line .link { margin-left: 6px; font-size: 16px; }
+
+/* "reading stats": a small outlined button at the bottom of the left column */
+.stats-button {
+  padding: 6px 16px;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  font-size: 16px;
+  font-style: italic;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.stats-button:hover { color: var(--bg); background: var(--text); }
+
+/* Stats pop-up: label / number pairs in two columns */
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 24px;
+  margin: 24px 0 36px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.stats dt { color: var(--muted); }
+
+/* Books-per-year chart: small bars, tap one to show only that year */
+.chart {
+  display: flex;
+  align-items: flex-end; /* bars grow upward from a shared baseline */
+  gap: 2px;
+  overflow-x: auto;      /* many years? scroll sideways */
+  border-bottom: 1px solid var(--line);
+}
+
+.bar {
+  flex: 1 0 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 4px;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  font-size: 13px;
+}
+
+.bar:disabled { cursor: default; }
+.bar-label { white-space: nowrap; }
+
+/* --value is set from JavaScript: 1 for the busiest year, 0.5 for half as many books, etc. */
+.bar-fill {
+  width: 12px;
+  height: calc(var(--value) * 100px);
+  min-height: 1px;
+  background: var(--year);
+}
+
+.bar:disabled .bar-fill { background: var(--line); }
+.bar:hover:not(:disabled) .bar-fill,
+.bar[aria-pressed="true"] .bar-fill { background: var(--accent); }
+.bar[aria-pressed="true"] { color: var(--accent); }
+
+/* Reading now: small cover beside the title */
+.reading-list li + li { margin-top: 12px; }
+
+.mini-book {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  font-size: 17px;
+}
+
+.mini-book .cover { flex: none; width: 48px; }
+.mini-title { display: block; line-height: 1.2; }
+.mini-book:hover .mini-title { color: var(--accent); }
+
+/* ---------- The books ---------- */
+
+.shelf {
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+  padding-top: 6px;
+}
+
+/* One section per year: the year on the left, that year's books in a grid on the right */
+.year {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 48px;
+  align-items: flex-start;
+}
+
+.year-label { flex: 0 0 100px; display: flex; flex-direction: column; gap: 4px; }
+
+.year-heading {
+  color: var(--year);
+  font-size: 40px;
+  line-height: 1;
+  font-variant-numeric: lining-nums;
+}
+
+/* When the books aren't split into years, the heading is words ("A to Z"), so it's smaller */
+.year-heading.is-text { font-size: 26px; line-height: 1.1; }
+
+.year-count { color: var(--muted); font-size: 16px; font-style: italic; }
+
+/* The grid of books for one year. auto-fill fits as many cover-width columns as there's room for. */
+.year-books {
+  flex: 999 1 520px; /* takes all the room the year label doesn't need */
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--cover-w), 1fr));
+  gap: 48px 40px;
+  padding-top: 32px;
+  border-top: 1px solid var(--text);
+}
+
+/* One book: a button holding the cover and the text underneath */
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: var(--cover-w);
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+}
+
+.entry-info { display: flex; flex-direction: column; gap: 2px; }
+.entry-title { font-size: 22px; line-height: 1.2; }
+.entry:hover .entry-title { color: var(--accent); }
+
+.dots {
+  display: block;
+  padding-top: 4px;
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+}
+
+.dots.unrated { font-size: 12px; letter-spacing: 0.16em; }
+
+/* Just the start of the review: -webkit-line-clamp cuts it off after three lines with "…" */
+.entry-review {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 8px;
+  color: var(--text-soft);
+  font-size: 17px;
+  line-height: 1.4;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.entry-date { padding-top: 8px; color: var(--faint); font-size: 14px; font-style: italic; }
+
+/* ---------- Covers ---------- */
+
+/* Made to look like a real book: barely rounded on the spine side, more on the page side,
+   a soft shadow underneath, and a dark band down the left edge for the spine. */
+.cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3; /* every cover is the same shape, whatever the image size */
+  overflow: hidden;
+  background: var(--line);
+  border-radius: 2px 5px 5px 2px;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.1), 0 18px 36px -12px rgb(0 0 0 / 0.3);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* The spine band, drawn on top of the image (an inset shadow on .cover would be hidden behind it) */
+.cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 6px 0 0 rgb(0 0 0 / 0.18);
+  pointer-events: none;
+}
+
+.cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* fill the 2:3 box, cropping the edges instead of squashing */
+}
+
+/* Hover (mouse only): the book lifts slightly */
+@media (hover: hover) {
+  .entry:hover .cover,
+  .mini-book:hover .cover {
+    transform: translateY(-4px);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.1), 0 26px 40px -14px rgb(0 0 0 / 0.35);
+  }
+}
+
+/* No cover image: a coloured cover with the title at the top and the author at the bottom.
+   The colours are set by app.js. */
+.cover-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: 18px 16px 16px 22px;
+}
+
+.ph-title { font-size: 24px; line-height: 1.1; overflow-wrap: anywhere; }
+.ph-author { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
+
+/* Small covers (Reading now) get small placeholder text */
+.mini-book .cover-placeholder { padding: 4px 4px 4px 8px; }
+.mini-book .ph-title { font-size: 8px; }
+.mini-book .ph-author { display: none; }
+
+/* ---------- Pop-ups (about and book detail) ---------- */
+
+.dialog {
+  width: min(720px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  padding: 0; /* padding goes on .dialog-inner, so a click on the dialog element itself = a backdrop click */
+  color: var(--text);
+  background: var(--bg);
+  border: 0;
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.35);
+}
+
+.dialog::backdrop { background: rgb(255 255 255 / 0.85); }
+
+.dialog-inner { position: relative; padding: 48px; }
+
+.close {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  padding: 0;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  font-size: 16px;
+  font-style: italic;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.close:hover { color: var(--accent); }
+
+.dialog-title { padding-right: 3em; font-size: 32px; line-height: 1.15; }
+
+
+.detail-top {
+  display: grid;
+  grid-template-columns: var(--cover-w) minmax(0, 1fr);
+  gap: 40px;
+  align-items: end;
+}
+
+.detail-info .author { margin-top: 4px; font-size: 20px; }
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 18px;
+  margin: 20px 0 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 17px;
+}
+
+.facts dt { color: var(--muted); }
+
+.review { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line); }
+.review p { color: var(--text-soft); white-space: pre-line; } /* pre-line turns the \n characters from <br /> into line breaks */
+.review p.empty { color: var(--faint); font-style: italic; }
+
+/* ---------- Phones and small tablets ---------- */
+
+@media (max-width: 860px) {
+  /* One column: the left column's content on top, then the books */
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 48px;
+    padding-top: 40px;
+  }
+
+  .side { gap: 28px; }
+
+  /* The year sits above its books */
+  .year-label { flex-basis: 100%; flex-direction: row; align-items: baseline; gap: 12px; }
+  .year-heading { font-size: 34px; }
+}
+
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  h1 { font-size: 32px; }
+
+  /* Two books side by side, slightly smaller covers */
+  :root { --cover-w: 140px; }
+  .year-books { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 20px; }
+  .entry { max-width: none; } /* fill the column on phones */
+  .entry-title { font-size: 19px; }
+  .entry-review { font-size: 15px; }
+  .ph-title { font-size: 18px; }
+  .cover-placeholder { padding: 12px 10px 10px 16px; }
+  .ph-author { font-size: 10px; }
+
+  .dialog-inner { padding: 48px 20px 28px; }
+  .dialog-title { font-size: 26px; padding-right: 0; }
+  .detail-top { grid-template-columns: 110px minmax(0, 1fr); gap: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
