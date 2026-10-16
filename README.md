@@ -84,6 +84,14 @@ For each book the site tries, in order:
 
 A missing local cover shows up as a 404 in the browser's developer console. That's expected: it's how the site knows to try the next source.
 
+## After changing style.css or app.js
+
+Browsers keep saved copies of `style.css` and `app.js`. A visitor (or me) could then get the new
+`index.html` with an old `app.js`, which breaks things, e.g. the close button stops working. To
+prevent that, `index.html` links to them as `style.css?v=2026-10-17` and `app.js?v=2026-10-17`.
+**Whenever I change either file, I change that date in both links** (to today's date). That
+makes every browser download the fresh files.
+
 ## Running it locally
 
 Browsers don't allow `fetch()` on a page opened by double-clicking `index.html` (a `file://` address), so start a small local web server in this folder. Either:
