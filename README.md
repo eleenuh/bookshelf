@@ -14,7 +14,11 @@ and it updates itself from my Goodreads shelves every 6 hours.
 | `goodreads.csv` | My books. Written automatically by `scripts/update_books.py`; don't edit it by hand. |
 | `scripts/update_books.py` | Downloads my Goodreads "read" and "currently-reading" shelves (from their public RSS feeds) and writes `goodreads.csv`. |
 | `.github/workflows/update-books.yml` | Tells GitHub to run that script every 6 hours and save `goodreads.csv` when it changes. |
+| `reviews/` | Website-only reviews, one text file per book (see "Reviews" below). |
+| `excerpts/` | Favourite passages, one text file per book (see "Excerpts" below). |
 | `rereads.csv` | Books I've read more than once, and how many times (see "Rereads" below). |
+| `textures/wear.webp` | The see-through "worn book" texture (scuffs, creases, dust) laid over every cover. |
+| `scripts/make_wear_texture.py` | Draws `textures/wear.webp`. Only needed to change the texture: `python scripts/make_wear_texture.py`. |
 | `covers/` | Optional cover images named by Goodreads Book Id, e.g. `covers/54493401.jpg`. These win over every other cover. |
 
 ## How the automatic updates work
@@ -55,6 +59,19 @@ Book Id,Title,Date read
 - The title column is only there to remind me which book it is.
 
 Saving a change to `rereads.csv` on GitHub updates the site straight away.
+
+## Reviews
+
+Reviews written on Goodreads appear on the site automatically. For a review that's only on the
+website, add a text file to the `reviews/` folder named by the book's Book Id, e.g.
+`reviews/11429027.txt`. It replaces the Goodreads review for that book. See `reviews/README.md`.
+
+## Excerpts
+
+To share a passage I love from a book, add a text file to the `excerpts/` folder named by the book's
+Book Id, e.g. `excerpts/52357.txt`. It appears in the book's pop-up straight under "see it on
+Goodreads", above "Thoughts". A last line starting with a dash (`— p. 42`) is shown as a small note saying where
+it's from. See `excerpts/README.md`.
 
 ## Covers
 

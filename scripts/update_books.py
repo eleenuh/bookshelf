@@ -8,6 +8,9 @@ using the same columns as a Goodreads library export, so app.js reads it exactly
 One extra column, "Cover URL", holds Goodreads' own cover image for each book.
 The feeds only include the LATEST time a book was read, so earlier reads come from rereads.csv;
 each one becomes an extra row, so a book read twice appears twice.
+Website-only reviews come from text files in the reviews/ folder (reviews/<Book Id>.txt); a review
+there replaces the Goodreads one for that book. Favourite passages come from excerpts/<Book Id>.txt
+and go in an extra "Excerpt" column.
 
 Only Python's standard library is used, so there is nothing to install.
 """
@@ -15,6 +18,7 @@ Only Python's standard library is used, so there is nothing to install.
 import collections
 import csv
 import email.utils
+import html
 import re
 import sys
 import urllib.request
@@ -27,16 +31,20 @@ PROJECT = Path(__file__).resolve().parent.parent
 OUTPUT = PROJECT / "goodreads.csv"
 # The feeds only give the latest read of each book, so earlier reads are listed by hand in this file
 REREADS = PROJECT / "rereads.csv"
+# Reviews written only for the website, one text file per book: reviews/<Book Id>.txt
+REVIEWS = PROJECT / "reviews"
+# Favourite passages from books, one text file per book: excerpts/<Book Id>.txt
+EXCERPTS = PROJECT / "excerpts"
 
 FEED_URL = "https://www.goodreads.com/review/list_rss/{user}?shelf={shelf}&page={page}"
 
-# Same columns as a Goodreads export, plus "Cover URL" at the end
+# Same columns as a Goodreads export, plus "Cover URL" and "Excerpt" at the end
 COLUMNS = [
     "Book Id", "Title", "Author", "Author l-f", "Additional Authors", "ISBN", "ISBN13",
     "My Rating", "Average Rating", "Publisher", "Binding", "Number of Pages", "Year Published",
     "Original Publication Year", "Date Read", "Date Added", "Bookshelves",
     "Bookshelves with positions", "Exclusive Shelf", "My Review", "Spoiler", "Private Notes",
-    "Read Count", "Owned Copies", "Cover URL",
+    "Read Count", "Owned Copies", "Cover URL", "Excerpt",
 ]
 
 
@@ -119,6 +127,22 @@ def load_rereads():
     return reads
 
 
+def load_text_files(folder):
+    """Read every <Book Id>.txt in a folder (reviews/ or excerpts/) into {book id: text}.
+    The text is stored the same way Goodreads stores reviews (special characters escaped, line
+    breaks as <br />), so app.js shows it exactly like a Goodreads review."""
+    reviews = {}
+    for path in sorted(folder.glob("*.txt")):  # finds nothing if the folder doesn't exist
+        if not path.stem.isdigit():
+            continue  # skip anything not named like 11429027.txt
+        # utf-8-sig also copes with the invisible marker some editors (like Notepad) put at the start.
+        # read_text() turns Windows line endings into plain newlines, so only those need replacing.
+        review = path.read_text(encoding="utf-8-sig").strip()
+        if review:
+            reviews[path.stem] = html.escape(review).replace(chr(10), "<br />")  # chr(10) is a newline
+    return reviews
+
+
 def to_row(item, shelf):
     author = text(item, "author_name")
     isbn = text(item, "isbn")
@@ -134,8 +158,7 @@ def to_row(item, shelf):
         "Number of Pages": text(item, "book/num_pages"),
         "Original Publication Year": text(item, "book_published"),
         "Date Read": feed_date(text(item, "user_read_at")),
-        "Date Added": feed_date(text(item, "user_date_added")),
-        "Exclusive Shelf": shelf,
+        "Date Added": feed_date(text(item, "user_date_added")),        "Exclusive Shelf": shelf,
         "My Review": text(item, "user_review"),  # may contain <br />; app.js turns those into line breaks
         "Cover URL": cover_url(item),
     }
@@ -159,6 +182,17 @@ def main():
     for row in rows:
         if row["Exclusive Shelf"] == "read":
             row["Read Count"] = str(1 + extra_counts[row["Book Id"]])
+
+    # Website-only reviews replace the Goodreads review for that book, and excerpts fill the
+    # "Excerpt" column (on every copy of a reread)
+    known_ids = {row["Book Id"] for row in rows}
+    for folder, column in [(REVIEWS, "My Review"), (EXCERPTS, "Excerpt")]:
+        texts = load_text_files(folder)
+        for row in rows:
+            if row["Book Id"] in texts:
+                row[column] = texts[row["Book Id"]]
+        for book_id in texts.keys() - known_ids:
+            print(f"Warning: {folder.name}/{book_id}.txt doesn't match any book on your shelves, so it isn't shown.")
 
     # If the read shelf comes back empty, the profile has probably been made private or Goodreads
     # is having problems. Stop without touching goodreads.csv, so the site keeps the last good copy.

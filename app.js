@@ -55,6 +55,7 @@ function toBook(row) {
     dateRead: parseDate(row["Date Read"]),
     dateAdded: parseDate(row["Date Added"]),
     review: cleanReview(row["My Review"]),
+    excerpt: cleanReview(row["Excerpt"]), // a favourite passage, from excerpts/<Book Id>.txt
   };
 }
 
@@ -103,7 +104,7 @@ function shortDate(date, withYear) {
 
 // How many times a book was read, in words: 1 -> "once", 2 -> "twice", 3 -> "3 times"
 function timesInWords(n) {
-  return n === 1 ? "once" : n === 2 ? "twice" : `${n} times`;
+  return n === 1 ? "Once" : n === 2 ? "Twice" : `${n} times`;
 }
 
 // 1 -> "first", 2 -> "second" … for labelling each read of a reread book
@@ -207,12 +208,13 @@ function createDots(rating) {
 
 // Colours for books without a cover image: a background and a matching text colour.
 const TONES = [
-  { bg: "#efb3c4", ink: "#3a1f28" }, // pink
-  { bg: "#17130f", ink: "#d9b26a" }, // near-black with gold
-  { bg: "#2a2616", ink: "#e6cf7a" }, // olive with yellow
-  { bg: "#e06d2c", ink: "#3a1a0c" }, // orange
-  { bg: "#b8873a", ink: "#3a2a12" }, // ochre
-  { bg: "#3b5a3e", ink: "#e8e0c8" }, // green
+  // All taken from (or blended from) the site's four colours, so they sit well on the page
+  { bg: "#6b5e3b", ink: "#fbf7f0" }, // olive-bronze
+  { bg: "#47512f", ink: "#e8e0d1" }, // deep olive green
+  { bg: "#e8e0d1", ink: "#47512f" }, // sand
+  { bg: "#887d5f", ink: "#fbf7f0" }, // light olive
+  { bg: "#d6cbb5", ink: "#47512f" }, // darker sand
+  { bg: "#595735", ink: "#e8e0d1" }, // between the two dark olives
 ];
 
 // A plain coloured cover with the title and author printed on it.
@@ -229,6 +231,11 @@ function createPlaceholder(book) {
 // Each time an image fails to load, the "error" event fires and we try the next source.
 function createCover(book) {
   const wrapper = el("span", "cover");
+  // Which part of the wear texture this book shows (see .cover::after in style.css).
+  // Worked out from the Book Id, so each book always has the same scuffs.
+  const wear = hashText(book.id || book.title);
+  wrapper.style.setProperty("--wear-x", `${wear % 101}%`);
+  wrapper.style.setProperty("--wear-y", `${(wear * 7) % 101}%`);
   const sources = [];
   if (book.id) sources.push(`covers/${book.id}.jpg`);
   if (book.coverUrl) sources.push(book.coverUrl);
@@ -255,6 +262,20 @@ function createCover(book) {
   return wrapper;
 }
 
+// The cover sitting on a little stack of loose pages that peek out behind it (see .page-stack in style.css).
+// Each book gets its own tilt and amount of overhang, worked out from its Book Id, so no two stacks match.
+// Used in the grid and for the big cover in the detail view.
+function createPageStack(book) {
+  const stack = el("span", "page-stack");
+  const h = hashText(book.id || book.title);
+  stack.style.setProperty("--tilt-1", `${((h % 7) - 3) * 0.35}deg`);       // -1.05° to 1.05°
+  stack.style.setProperty("--tilt-2", `${(((h * 3) % 7) - 3) * 0.4}deg`);  // -1.2° to 1.2°
+  stack.style.setProperty("--tilt-3", `${(((h * 5) % 7) - 3) * 0.3}deg`);  // -0.9° to 0.9°
+  stack.style.setProperty("--overhang", `${10 + (h % 7)}px`);              // 10px to 16px
+  stack.append(el("span", "loose-page"), createCover(book));
+  return stack;
+}
+
 // One book: the cover, then title, author, rating dots, a line of the review and the date.
 // The date is created separately (book.dateLine) because its wording depends on the section.
 function createEntry(book) {
@@ -269,8 +290,9 @@ function createEntry(book) {
   book.dateLine = el("span", "entry-date");
   info.append(book.dateLine);
 
-  entry.append(createCover(book), info);
-  entry.addEventListener("click", () => openDetail(book));
+  const stack = createPageStack(book);
+  entry.append(stack, info);
+  entry.addEventListener("click", () => openDetail(book, stack)); // the cover glides from here
   return entry;
 }
 
@@ -402,8 +424,9 @@ function renderReading() {
     button.type = "button";
     const text = el("span");
     text.append(el("span", "mini-title", book.title), el("span", "author", book.author));
-    button.append(createCover(book), text);
-    button.addEventListener("click", () => openDetail(book));
+    const cover = createCover(book);
+    button.append(cover, text);
+    button.addEventListener("click", () => openDetail(book, cover)); // the cover glides from here
     const li = el("li");
     li.append(button);
     return li;
@@ -412,8 +435,159 @@ function renderReading() {
   $("#reading-entry").hidden = !items.length;
 }
 
-function openDetail(book) {
-  $("#detail-cover").replaceChildren(createCover(book));
+// ---------- The library card in the book pop-up ----------
+
+const BORROWER = "Elina";
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const INKS = ["#5a3f9e", "#2b2b2b", "#3d5a8a", "#1f7a7a"]; // old stamp-pad colours
+const CARD_ROWS = 6;
+
+// A date the way a library stamp prints it: Aug 13 '25
+const stampDate = (d) => `${MONTHS[d.getMonth()]} ${d.getDate()} '${String(d.getFullYear()).slice(2)}`;
+
+// A stamped date: bold, slightly crooked (a different tilt per row), in one of the ink colours
+function createStamp(text, i) {
+  const stamp = el("span", "stamp", text);
+  stamp.style.color = INKS[i % INKS.length];
+  stamp.style.transform = `rotate(${(((i * 37) % 7) - 3) * 0.7}deg)`;
+  return stamp;
+}
+
+// A made-up but consistent library call number, like "823.47 / K311r":
+// a number from the Book Id, then the author's initial, three digits and the title's initial.
+function callNumber(book) {
+  const h = hashText(book.id || book.title);
+  const title = book.title.replace(/^(the|a|an)\s+/i, "");
+  return `${800 + (h % 100)}.${String((h * 7) % 100).padStart(2, "0")}\n`
+    + `${(book.authorSort || book.author)[0] || "X"}${100 + ((h * 13) % 900)}${(title[0] || "x").toLowerCase()}`;
+}
+
+// Fill in the card: one row for every time I read this book (rereads included), oldest first:
+// my name, handwritten, and the day I finished it, stamped. A book I'm reading now gets my name
+// and no return stamp yet.
+function renderLibraryCard(book) {
+  $("#card-callno").textContent = callNumber(book);
+  $("#card-author").textContent = book.author;
+  $("#card-title").textContent = book.title;
+
+  const reads = book.shelf === "currently-reading"
+    ? []
+    : state.books.filter((b) => (book.id ? b.id === book.id : b === book)).sort((a, b) => time(a.dateRead) - time(b.dateRead));
+  const returned = reads.map((r) => (r.dateRead ? stampDate(r.dateRead) : ""));
+  if (book.shelf === "currently-reading") returned.push(""); // borrowed, not returned yet
+
+  const rows = [];
+  for (let i = 0; i < Math.max(CARD_ROWS, returned.length); i++) {
+    const tr = el("tr");
+    const name = el("td"), back = el("td");
+    if (i < returned.length) {
+      name.append(el("span", "hand", BORROWER));
+      if (returned[i]) back.append(createStamp(returned[i], i));
+    } // rows after the last read stay as empty ruled lines
+    tr.append(name, back);
+    rows.push(tr);
+  }
+  $("#card-rows").replaceChildren(...rows);
+}
+
+// Take the card out (the book slides down to show all of it) or tuck it back in.
+// --card-h tells the CSS how far to move the book: the card's own height.
+function toggleLibraryCard(open) {
+  const left = $("#detail-left");
+  const card = $("#library-card");
+  const isOpen = open ?? !left.classList.contains("card-open");
+  left.style.setProperty("--card-h", `${card.offsetHeight}px`);
+  left.classList.toggle("card-open", isOpen);
+  card.setAttribute("aria-expanded", String(isOpen));
+}
+
+// ---------- Opening and closing the book pop-up ----------
+// The cover you clicked glides from the shelf to its place in the pop-up, and back again on close.
+// This uses the "FLIP" trick: show the pop-up, measure where the cover was and where it is now,
+// then animate it from the old spot to the new one with the Web Animations API (element.animate).
+
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const GLIDE = { duration: 550, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" };
+// How long the card takes to slide back behind the book before the cover glides home (matches
+// style.css). If the card was taken out, the book also has to slide back up over it, which takes longer.
+const LEAVE_MS = 250;
+const LEAVE_CARD_OUT_MS = 500;
+let openedFrom = null; // the cover on the shelf this pop-up was opened from
+let closing = false;
+
+// Animate the big cover between the shelf cover's position and its own. reverse = glide back.
+function glideCover(from, reverse) {
+  const target = $("#detail-cover");
+  const a = from.getBoundingClientRect();
+  const b = target.getBoundingClientRect();
+  if (!a.width || !b.width) return null;
+  const onShelf = `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${a.width / b.width}, ${a.height / b.height})`;
+  const frames = [{ transform: onShelf }, { transform: "none" }];
+  // The closing glide holds its end position until the pop-up closes; the opening one lets go
+  return target.animate(reverse ? frames.reverse() : frames, { ...GLIDE, fill: reverse ? "forwards" : "none" });
+}
+
+// Fade the pop-up's page colour in (or out), so the shelf shows through while the cover moves
+function fadeBackground(detail, reverse) {
+  const frames = [{ backgroundColor: "transparent" }, { backgroundColor: getComputedStyle(detail).backgroundColor }];
+  return detail.animate(reverse ? frames.reverse() : frames, { duration: 450, easing: "ease", fill: "forwards" });
+}
+
+// After the book pop-up has closed: put the shelf cover back, tuck the card in, and clear the
+// finished animations so the next book starts fresh. Safe to run more than once.
+function tidyDetail() {
+  const detail = $("#detail");
+  toggleLibraryCard(false);
+  detail.classList.remove("is-leaving", "is-gliding");
+  if (openedFrom) openedFrom.style.visibility = "";
+  openedFrom = null;
+  for (const animation of detail.getAnimations({ subtree: true })) {
+    if (!(animation instanceof CSSAnimation)) animation.cancel();
+  }
+}
+
+function closeDetail() {
+  const detail = $("#detail");
+  if (!detail.open || closing) return;
+  closing = true;
+  const finish = () => {
+    if (!closing) return; // already finished (finish can be called twice, see below)
+    detail.close();
+    tidyDetail();
+    closing = false;
+  };
+  const canGlide = openedFrom && openedFrom.isConnected && !reduceMotion.matches;
+  if (!canGlide) {
+    if (reduceMotion.matches) finish();
+    else detail.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: "forwards" }).finished.then(finish);
+    return;
+  }
+  // If the card is out, the book slides back up over it first, so it lands exactly on its shelf spot
+  const cardWasOut = $("#detail-left").classList.contains("card-open");
+  toggleLibraryCard(false);
+  // First the details and the × fade out and the library card slides back down behind the book
+  // (the "is-leaving" class, see style.css) while the cover stays put. Only then does the cover
+  // glide back onto the shelf; moving it straight away would uncover the card on its way in.
+  detail.classList.add("is-leaving");
+  setTimeout(() => {
+    detail.classList.add("is-gliding"); // the card is hidden behind the cover now; make it invisible
+    const glide = glideCover(openedFrom, true);
+    fadeBackground(detail, true);
+    // Close when the glide reports it's finished, or after its duration anyway. Browsers don't
+    // always report it (e.g. when the tab is in the background), and without this safety net
+    // the faded, invisible pop-up could stay open on top of the page.
+    if (glide) glide.finished.then(finish, finish);
+    setTimeout(finish, GLIDE.duration + 50);
+  }, cardWasOut ? LEAVE_CARD_OUT_MS : LEAVE_MS);
+}
+
+function openDetail(book, from = null) {
+  $("#detail-cover").replaceChildren(createPageStack(book));
+  renderLibraryCard(book);
+  // The small label above the title
+  $("#detail-eyebrow").textContent = book.shelf === "currently-reading"
+    ? "Reading now"
+    : book.dateRead ? `Read in ${book.dateRead.getFullYear()}` : "Date not recorded";
   $("#detail-title").textContent = book.title;
   $("#detail-author").textContent = book.author;
   $("#detail-rating").replaceChildren(createDots(book.rating));
@@ -427,6 +601,14 @@ function openDetail(book) {
   // Very old books have negative years in Goodreads (-600 means 600 BC)
   $("#detail-year").textContent = !book.year ? "unknown" : book.year < 0 ? `${-book.year} BC` : book.year;
 
+  // A favourite passage, if there is one. A last line starting with a dash ("— p. 42") is shown
+  // separately, as a small note saying where the passage is from.
+  const lines = book.excerpt.split("\n");
+  const cite = /^[—–-]/.test(lines.at(-1).trim()) && lines.length > 1 ? lines.pop().trim() : "";
+  $("#detail-excerpt").textContent = lines.join("\n").trim();
+  $("#detail-excerpt-cite").textContent = cite;
+  $("#excerpt-section").hidden = !book.excerpt; // no passage: show nothing at all
+
   const review = $("#detail-review");
   review.textContent = book.review || "Nothing written yet.";
   review.classList.toggle("empty", !book.review);
@@ -435,7 +617,18 @@ function openDetail(book) {
   link.hidden = !book.id;
   link.href = `https://www.goodreads.com/book/show/${encodeURIComponent(book.id)}`;
 
-  $("#detail").showModal();
+  // Opening the pop-up also replays its CSS animations (the text drifting up, the card sliding out)
+  const detail = $("#detail");
+  detail.showModal();
+  detail.scrollTop = 0; // always start at the top, even if the last book was scrolled down
+
+  // The cover glides in from the shelf, and the shelf copy is hidden so it looks like it was lifted off
+  openedFrom = from;
+  if (from && !reduceMotion.matches) {
+    from.style.visibility = "hidden";
+    glideCover(from, false);
+    fadeBackground(detail, false);
+  }
 }
 
 function showLoadError(error) {
@@ -478,12 +671,40 @@ function wireControls() {
     chart.scrollLeft = chart.scrollWidth; // if there are many years, start scrolled to the latest
   });
 
-  // Close a pop-up when the backdrop around it is clicked.
+  // Close a pop-up when the backdrop around it is clicked (the book pop-up closes with its glide)
   for (const dialog of document.querySelectorAll("dialog")) {
     dialog.addEventListener("click", (event) => {
-      if (event.target === dialog) dialog.close();
+      if (event.target !== dialog) return;
+      if (dialog.id === "detail") closeDetail();
+      else dialog.close();
     });
   }
+
+  // The library card: click it (or press Enter / Space on it) to take it out or tuck it back in.
+  // Clicking the book while the card is out also tucks it back in.
+  const card = $("#library-card");
+  card.addEventListener("click", () => toggleLibraryCard());
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleLibraryCard();
+    }
+  });
+  $("#detail-cover").addEventListener("click", () => {
+    if ($("#detail-left").classList.contains("card-open")) toggleLibraryCard(false);
+  });
+
+  // The book pop-up's × button, and the Esc key (which would otherwise close it instantly)
+  const detail = $("#detail");
+  $("#detail-close").addEventListener("click", closeDetail);
+  detail.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeDetail();
+  });
+
+  // Once the book pop-up has closed: put the shelf cover back and clear the finished animations,
+  // so the next book starts fresh
+  detail.addEventListener("close", tidyDetail); // a backup, in case it closes some other way
 }
 
 async function init() {

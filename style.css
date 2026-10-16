@@ -5,15 +5,24 @@
    Colours live in CSS variables on :root, so changing a colour means changing it in one place. */
 
 :root {
-  --bg: #ffffff;
-  --text: #1c1b19;
-  --text-soft: #4a4741;  /* intro paragraph, review lines */
-  --author: #6f6a62;
-  --muted: #8b867d;      /* small labels, unselected options */
-  --faint: #a29d94;      /* dates */
-  --year: #b5afa5;       /* the big year numbers */
-  --line: #e6e2db;       /* light hairlines */
-  --accent: #7a2e1f;     /* deep red: rating dots, hover, selected */
+  /* The four main colours */
+  --bg: #fbf8f1;         /* warm off-white page */
+  --text: #47512f;       /* deep olive green ink: main text, the line above each year */
+  --accent: #6b5e3b;     /* olive-bronze: authors, rating dots, hover, selected */
+  --line: #e8e0d1;       /* sand: hairlines, empty cover boxes */
+
+  /* In-between shades, made by blending the accent or text into the background,
+     so everything stays in the same colour family */
+  --text-soft: #626a4c;  /* intro paragraph, review lines (text, a little lighter) */
+  --author: var(--accent);
+  --muted: #887d5f;      /* small labels, unselected options (accent at 80%) */
+  --faint: #9d947b;      /* dates (accent at 65%) */
+  --year: #a59c84;       /* the big year numbers (accent at 60%) */
+  --field-line: #d6cbb5; /* underline of the search box and dropdowns (a darker sand) */
+
+  /* Worn look on the covers (see "Covers" below) */
+  --film-grain: 0.10; /* fine paper grain: 0 = off, 0.2 = stronger */
+  --wear: 1;          /* scuffs, creases and rubbed edges: 0 = off, 0.5 = half as strong */
 
   --cover-w: 200px;      /* every cover is this wide (the "bigger" size from the design) */
   --serif: "EB Garamond", Garamond, "Times New Roman", serif;
@@ -129,7 +138,7 @@ h1 { font-size: 38px; line-height: 1.1; }
   color: var(--text);
   background: transparent;
   border: 0;
-  border-bottom: 1px solid #d9d5ce;
+  border-bottom: 1px solid var(--field-line);
   border-radius: 0;
   font: inherit;
   cursor: pointer;
@@ -142,13 +151,13 @@ h1 { font-size: 38px; line-height: 1.1; }
   padding: 4px 0;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid #d9d5ce;
+  border-bottom: 1px solid var(--field-line);
   border-radius: 0;
   font-size: 17px;
 }
 
 .find input:focus { outline: none; border-bottom-color: var(--accent); }
-input::placeholder { color: #9a958c; font-style: italic; }
+input::placeholder { color: var(--faint); font-style: italic; }
 
 .status-line { margin-top: 4px; color: var(--muted); font-size: 16px; font-style: italic; }
 .status.error { color: var(--accent); font-style: normal; }
@@ -331,16 +340,56 @@ input::placeholder { color: #9a958c; font-style: italic; }
   overflow: hidden;
   background: var(--line);
   border-radius: 2px 5px 5px 2px;
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.1), 0 18px 36px -12px rgb(0 0 0 / 0.3);
+  box-shadow: 0 2px 4px rgb(71 81 47 / 0.1), 0 18px 36px -12px rgb(71 81 47 / 0.3);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* The spine band, drawn on top of the image (an inset shadow on .cover would be hidden behind it) */
+/* ---- Worn look: covers that look like real, well-handled books ----
+   Three layers:
+   1. film colour: the cover image gets a hint of warmth, without losing its colour (.cover img, below)
+   2. paper grain: fine noise over the whole cover (.cover::before)
+   3. wear and tear: scuffs, creases and rubbed edges and corners (.cover::after)
+   Both ::before and ::after are see-through boxes laid on top of the cover, and
+   pointer-events: none lets clicks pass straight through them to the book. */
+
+/* Film grain. The noise pattern is a tiny SVG "drawing" written right here in the CSS:
+   feTurbulence makes random noise, feColorMatrix turns it grey. It repeats every 160px.
+   mix-blend-mode: multiply only darkens, so the grain looks printed into the cover. */
+.cover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px;
+  opacity: var(--film-grain);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* Wear and tear, drawn on top of the image (anything drawn on .cover itself would be hidden behind it):
+   - scuffs, dust and creases from textures/wear.webp (made by scripts/make_wear_texture.py).
+     The texture is 3 times the cover's size, and --wear-x / --wear-y (set by app.js from the Book Id)
+     choose which part of it each book shows, so every book has its own scuffs.
+   - rubbed corners: four small pale glows, where the colour of a cover wears off first
+   - rubbed edges: a thin pale line and glow just inside the edge
+   - the spine band down the left edge */
 .cover::after {
   content: "";
   position: absolute;
   inset: 0;
-  box-shadow: inset 6px 0 0 rgb(0 0 0 / 0.18);
+  z-index: 1;
+  background:
+    radial-gradient(circle at 0 0, rgb(255 251 242 / 0.45), transparent 10px),
+    radial-gradient(circle at 100% 0, rgb(255 251 242 / 0.45), transparent 10px),
+    radial-gradient(circle at 0 100%, rgb(255 251 242 / 0.45), transparent 10px),
+    radial-gradient(circle at 100% 100%, rgb(255 251 242 / 0.45), transparent 10px),
+    url("textures/wear.webp") var(--wear-x, 50%) var(--wear-y, 50%) / 300% 300% no-repeat;
+  box-shadow:
+    inset 6px 0 0 rgb(71 81 47 / 0.18),     /* spine */
+    inset 0 0 0 1px rgb(255 251 242 / 0.3), /* rubbed edge line */
+    inset 0 0 8px rgb(255 251 242 / 0.25);  /* rubbed edge glow */
+  opacity: var(--wear);
   pointer-events: none;
 }
 
@@ -349,15 +398,80 @@ input::placeholder { color: #9a958c; font-style: italic; }
   width: 100%;
   height: 100%;
   object-fit: cover; /* fill the 2:3 box, cropping the edges instead of squashing */
+  /* Film colour: just a hint of warmth (sepia), with colour and contrast nudged slightly UP
+     so the covers stay bright and stand out from the off-white page. */
+  filter: sepia(0.05) saturate(1.02) contrast(1.04);
 }
 
-/* Hover (mouse only): the book lifts slightly */
+/* Hover (mouse only): the book lifts slightly (in the grid the whole stack of pages lifts with it) */
 @media (hover: hover) {
-  .entry:hover .cover,
+  .entry:hover .page-stack,
   .mini-book:hover .cover {
     transform: translateY(-4px);
-    box-shadow: 0 2px 4px rgb(0 0 0 / 0.1), 0 26px 40px -14px rgb(0 0 0 / 0.35);
   }
+
+  .entry:hover .cover,
+  .mini-book:hover .cover {
+    box-shadow: 0 2px 4px rgb(71 81 47 / 0.1), 0 26px 40px -14px rgb(71 81 47 / 0.35);
+  }
+}
+
+/* ---- Loose pages peeking out behind each cover ----
+   Three "pages" sit behind the cover: .page-stack::before (nearest), ::after, and the .loose-page span
+   (furthest back). Each is a box the size of the cover, pushed right so it sticks out by up to
+   --overhang, and tilted by its own --tilt-… angle (all set per book by app.js).
+   clip-path cuts each page into an imperfect shape: worn, rounded-off corners, a ragged right
+   side and slightly uneven top and bottom edges, so they look like real paper, not rectangles. */
+.page-stack {
+  position: relative;
+  display: block;
+  isolation: isolate; /* keeps the pages' negative z-index inside this book, behind its cover */
+  transition: transform 0.25s ease;
+}
+
+.page-stack::before,
+.page-stack::after,
+.loose-page {
+  content: "";
+  position: absolute;
+  /* Plain old paper: a cream-to-yellowed gradient */
+  background: linear-gradient(to right, #f1eadb, #e6dbc4);
+  box-shadow: inset -1px 0 0 rgb(71 81 47 / 0.2), inset 0 -1px 0 rgb(71 81 47 / 0.12); /* page edges */
+}
+
+/* Nearest page: sticks out about half the overhang */
+.page-stack::before {
+  top: 2px;
+  bottom: -1px;
+  left: 6px;
+  right: calc(var(--overhang, 12px) * -0.55);
+  z-index: -1;
+  transform: rotate(var(--tilt-1, 0deg));
+  clip-path: polygon(0 0, 45% 0.3%, 96.5% 0, 99.2% 0.6%, 100% 2.5%, 99% 9%, 100% 18%, 98.6% 27%, 100% 39%, 99.2% 52%, 100% 64%, 98.8% 75%, 100% 87%, 99.6% 96.5%, 98.5% 99.3%, 96% 100%, 55% 99.6%, 0 100%);
+}
+
+/* Middle page: sticks out the full overhang, a little more yellowed */
+.page-stack::after {
+  top: 5px;
+  bottom: 2px;
+  left: 10px;
+  right: calc(var(--overhang, 12px) * -1);
+  z-index: -2;
+  transform: rotate(var(--tilt-2, 0deg));
+  background: linear-gradient(to right, #ebe2cf, #ddd0b4);
+  clip-path: polygon(0 0.4%, 60% 0, 95% 0.5%, 98.6% 0.2%, 100% 3%, 98.4% 15%, 100% 24%, 99% 35%, 100% 47%, 98.5% 58%, 100% 70%, 99.1% 82%, 100% 91%, 98.9% 98%, 95.5% 100%, 40% 99.5%, 0 100%);
+}
+
+/* Furthest page: peeks out a little at the top and bottom as well */
+.loose-page {
+  top: -4px;
+  bottom: -5px;
+  left: 14px;
+  right: calc(var(--overhang, 12px) * -0.8);
+  z-index: -3;
+  transform: rotate(var(--tilt-3, 0deg));
+  background: linear-gradient(to right, #e9dfca, #d8c9ab);
+  clip-path: polygon(0 1%, 50% 0, 95.5% 0.4%, 99.3% 1.8%, 100% 10%, 99% 21%, 100% 33%, 98.7% 44%, 100% 56%, 99.2% 68%, 100% 79%, 98.6% 90%, 99.5% 97.8%, 97% 99.6%, 93% 100%, 45% 99.2%, 0 99.6%);
 }
 
 /* No cover image: a coloured cover with the title at the top and the author at the bottom.
@@ -378,7 +492,7 @@ input::placeholder { color: #9a958c; font-style: italic; }
 .mini-book .ph-title { font-size: 8px; }
 .mini-book .ph-author { display: none; }
 
-/* ---------- Pop-ups (about and book detail) ---------- */
+/* ---------- Reading stats pop-up ---------- */
 
 .dialog {
   width: min(720px, calc(100% - 32px));
@@ -387,10 +501,10 @@ input::placeholder { color: #9a958c; font-style: italic; }
   color: var(--text);
   background: var(--bg);
   border: 0;
-  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.35);
+  box-shadow: 0 30px 60px -20px rgb(71 81 47 / 0.35);
 }
 
-.dialog::backdrop { background: rgb(255 255 255 / 0.85); }
+.dialog::backdrop { background: rgb(251 248 241 / 0.85); } /* the page colour, see-through */
 
 .dialog-inner { position: relative; padding: 48px; }
 
@@ -413,30 +527,306 @@ input::placeholder { color: #9a958c; font-style: italic; }
 .dialog-title { padding-right: 3em; font-size: 32px; line-height: 1.15; }
 
 
-.detail-top {
-  display: grid;
-  grid-template-columns: var(--cover-w) minmax(0, 1fr);
-  gap: 40px;
-  align-items: end;
+/* ---------- Book detail: full-screen pop-up ----------
+   Laid out like the teabag pop-up on aqilazme.com: it fills the whole screen in the page colour
+   and fades in. The big cover sits on the left and stays in view; the details scroll on the right. */
+
+.detail {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  color: var(--text);
+  background: var(--bg);
+  border: 0;
+  overflow-y: auto; /* the pop-up scrolls by itself if the review is long */
 }
 
-.detail-info .author { margin-top: 4px; font-size: 20px; }
+.detail::backdrop { background: transparent; } /* nothing shows behind a full-screen pop-up */
 
-.facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 18px;
-  margin: 20px 0 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-  font-size: 17px;
+/* Entrance. The cover you clicked glides from the shelf into its place on the left (that's done
+   in app.js, see openDetail), while the page colour fades in around it. Then the text drifts up,
+   and the library card rises from behind the cover until its top peeks out. These CSS animations
+   replay by themselves every time the pop-up opens. */
+.detail[open] .detail-text { animation: detail-drift 0.6s ease 0.35s backwards; }
+.detail[open] .detail-close { animation: detail-appear 0.4s ease 0.3s backwards; }
+
+/* Leaving: app.js adds "is-leaving" when you close the pop-up.
+   - The details and the × fade out.
+   - The library card slides back down behind the book, the way it came out (if it was taken out,
+     the book slides back up over it at the same time).
+   Once the card is hidden behind the cover, app.js adds "is-gliding": the card is made invisible
+   (so the leaving cover doesn't uncover it) and the cover glides back to the shelf.
+   animation: none stops any entrance animation that might still be playing. */
+.detail.is-leaving .detail-text,
+.detail.is-leaving .detail-close {
+  opacity: 0;
+  animation: none;
+  transition: opacity 0.2s ease;
 }
 
-.facts dt { color: var(--muted); }
+.detail.is-leaving .library-card {
+  animation: none;
+  transform: translateY(var(--peek));
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.6, 1);
+}
 
-.review { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line); }
-.review p { color: var(--text-soft); white-space: pre-line; } /* pre-line turns the \n characters from <br /> into line breaks */
-.review p.empty { color: var(--faint); font-style: italic; }
+.detail.is-gliding .library-card { opacity: 0; }
+/* The card waits, invisible, until the cover has landed on top of it (the glide takes 0.55s);
+   otherwise it would show by itself while the cover is still on its way. Then it rises into view. */
+.detail[open] .library-card { animation: card-peek 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.55s backwards; }
+
+@keyframes detail-drift { from { opacity: 0; transform: translateY(18px); } }
+@keyframes detail-appear { from { opacity: 0; } }
+/* 0%: invisible and fully behind the cover (this is also how it waits during the delay),
+   1%: visible but still hidden behind the cover, 100%: risen to its resting peek */
+@keyframes card-peek {
+  0% { opacity: 0; transform: translateY(var(--peek)); }
+  1% { opacity: 1; transform: translateY(var(--peek)); }
+}
+
+/* Two columns: a 260px cover column and the text column, centred on the screen */
+.detail-inner {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 3.5rem;
+  align-items: start;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 8vh 3rem 12vh;
+}
+
+/* Left column: the big cover, with the library card tucked behind it.
+   --peek is how much of the card shows above the cover. The column has that much space at the
+   top, the card starts at the very top, and the cover sits over the rest of it. */
+.detail-left {
+  --peek: 42px;
+  position: sticky; /* stays in view while a long review scrolls past */
+  top: 8vh;
+  padding-top: var(--peek);
+  transition: padding-bottom 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.detail-cover {
+  position: relative;
+  z-index: 1; /* in front of the card */
+  transform-origin: top left; /* the glide grows the cover from its top-left corner */
+}
+
+/* Card taken out (app.js adds .card-open when you click the card): the book slides down until about
+   half the card shows. --card-h is the card's height (measured by app.js) and --card-out is how much
+   of it to show. The column grows by the same amount at the bottom, so the book never covers
+   anything below it (on phones, the text). */
+.detail-left { --card-out: 0.5; }
+.detail-cover > .page-stack { transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.detail-left.card-open .detail-cover > .page-stack { transform: translateY(calc(var(--card-h, 300px) * var(--card-out) - var(--peek))); }
+.detail-left.card-open { padding-bottom: calc(var(--card-h, 300px) * var(--card-out) - var(--peek)); }
+
+/* Only the book picture moves down; its (invisible) box stays where it was, on top of the card.
+   pointer-events: none lets the mouse go through that box to the card, so the card gets the
+   pointer cursor and the clicks. The moved book itself can be clicked to tuck the card back in. */
+.detail-left.card-open .detail-cover { pointer-events: none; }
+.detail-left.card-open .detail-cover > .page-stack { pointer-events: auto; cursor: pointer; }
+
+.detail-cover .cover {
+  box-shadow: 0 2px 4px rgb(71 81 47 / 0.1), 0 40px 80px -20px rgb(71 81 47 / 0.45);
+}
+
+.detail-text { max-width: 620px; }
+
+/* ---- The library card behind the book ----
+   Based on an old library checkout card: a call number, typed AUTHOR and TITLE, and a table with
+   a handwritten name and a stamped return date for every time I read the book (app.js fills it in).
+   It sits behind the cover with only its top showing; hover to nudge it up, click to take it out. */
+.library-card {
+  position: absolute;
+  z-index: 0; /* behind the cover */
+  top: 0;
+  left: 10px;
+  right: 10px;
+  padding: 12px 14px 16px;
+  color: #2a2620;
+  background: #f3ead3;
+  border: 1px solid #d9c9a3;
+  border-radius: 2px;
+  box-shadow: 0 4px 12px -6px rgb(71 81 47 / 0.35);
+  font-family: "Special Elite", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: transform 0.35s ease;
+}
+
+/* Hovering (or reaching it with the keyboard) nudges the card up, as if it's about to be pulled out */
+@media (hover: hover) {
+  .detail-left:not(.card-open) .library-card:hover { transform: translateY(-12px); }
+}
+.detail-left:not(.card-open) .library-card:focus-visible { transform: translateY(-12px); }
+
+.card-callno { margin-bottom: 10px; white-space: pre-line; }
+
+.card-line { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+
+.card-label {
+  flex: none;
+  width: 42px;
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.card-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  border-bottom: 1px solid #2a2620;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.card-table th {
+  padding: 4px 2px;
+  border-top: 2px solid #2a2620;
+  border-bottom: 1px solid #2a2620;
+  font-family: Georgia, serif;
+  font-size: 8.5px;
+  font-weight: 500;
+}
+
+.card-table th:first-child { width: 56%; } /* the name column; the date column gets the rest */
+
+.card-table td {
+  height: 26px;
+  padding: 0 2px;
+  overflow: hidden;
+  border-bottom: 1px solid #b9ad92;
+  white-space: nowrap;
+}
+
+.card-table td + td,
+.card-table th + th { border-left: 1px solid #2a2620; }
+
+/* A rubber-stamped date: bold, slightly crooked, in old ink colours (set by app.js) */
+.stamp {
+  display: inline-block;
+  font-family: "Courier New", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+}
+
+/* A handwritten name, in blue-black ink */
+.hand { color: #3a4a6b; font-family: "Homemade Apple", cursive; font-size: 11px; }
+
+/* Small capitals above the title, e.g. "Read in 2025" */
+.detail-eyebrow {
+  margin-bottom: 0.5rem;
+  color: var(--accent);
+  font-size: 1.05rem;
+  font-variant: small-caps;
+  letter-spacing: 0.14em;
+  text-transform: lowercase; /* small-caps turns lowercase letters into small capitals */
+}
+
+.detail-title { font-size: 3.2rem; line-height: 1.02; }
+
+.detail-author { margin-top: 0.35rem; color: var(--accent); font-size: 1.25rem; font-style: italic; }
+
+.detail-rating .dots { padding-top: 0.75rem; font-size: 14px; }
+
+/* Label / value rows with hairlines between them */
+.archive { margin: 2rem 0 1.25rem; }
+
+.archive > div {
+  display: flex;
+  align-items: baseline;
+  gap: 2rem;
+  padding: 0.42rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.archive > div:last-child { border-bottom: 0; }
+.archive dt { flex: 0 0 130px; color: var(--accent); font-size: 1.2rem; font-style: italic; }
+.archive dd { font-size: 1.12rem; }
+
+/* "Thoughts": a large italic heading with a thin underline */
+.notes { margin-top: 2.5rem; }
+
+.notes-title {
+  display: inline-block;
+  margin-bottom: 1rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--accent);
+  font-size: 1.9rem;
+  font-style: italic;
+}
+
+#detail-review {
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1.55;
+  white-space: pre-line; /* turns the line breaks in the review into real line breaks */
+}
+
+/* A big decorative first letter, like the start of a chapter */
+#detail-review:not(.empty)::first-letter {
+  float: left;
+  margin: 0.06em 0.5rem 0 0;
+  color: var(--accent);
+  font-size: 4.2em;
+  line-height: 0.82;
+}
+
+#detail-review.empty { color: var(--faint); font-style: italic; }
+
+/* A favourite passage, straight under "see it on Goodreads": the quote in italics, with a thin
+   olive line down its left side */
+.excerpt { margin: 2.25rem 0 0; }
+
+.excerpt-text {
+  margin: 0;
+  padding: 0.2rem 0 0.2rem 1.4rem;
+  border-left: 2px solid var(--accent);
+  color: var(--text);
+  font-size: 1.2rem;
+  font-style: italic;
+  line-height: 1.6;
+  white-space: pre-line; /* keeps the passage's line breaks */
+}
+
+/* Where the passage is from, e.g. "— p. 42" */
+.excerpt-cite { margin-top: 0.6rem; padding-left: 1.4rem; color: var(--muted); font-size: 1rem; }
+.excerpt-cite:empty { display: none; }
+
+/* Round close button in the top-right corner; it turns a quarter turn on hover */
+.detail-close {
+  position: fixed;
+  top: 2rem;
+  right: 2.4rem;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--field-line);
+  border-radius: 50%;
+  font-size: 1.4rem;
+  line-height: 1;
+  transition: background-color 0.3s, color 0.3s, transform 0.3s;
+}
+
+.detail-close:hover { color: var(--bg); background: var(--accent); transform: rotate(90deg); }
 
 /* ---------- Phones and small tablets ---------- */
 
@@ -472,9 +862,18 @@ input::placeholder { color: #9a958c; font-style: italic; }
 
   .dialog-inner { padding: 48px 20px 28px; }
   .dialog-title { font-size: 26px; padding-right: 0; }
-  .detail-top { grid-template-columns: 110px minmax(0, 1fr); gap: 20px; }
+}
+
+/* Book detail on phones and small tablets: one column, the cover centred above the text */
+@media (max-width: 760px) {
+  .detail-inner { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding: 6vh 1.25rem 10vh; }
+  .detail-left { position: relative; top: 0; width: 220px; justify-self: center; } /* relative, not sticky: the card still positions itself inside the column */
+  .detail-title { font-size: 2.3rem; }
+  .archive dt { flex-basis: 100px; }
+  .archive > div { gap: 1rem; }
+  .detail-close { top: 1rem; right: 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; }
 }

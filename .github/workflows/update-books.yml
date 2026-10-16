@@ -1,6 +1,6 @@
 # Keeps goodreads.csv in step with Goodreads, automatically.
 #
-# Every 6 hours (and whenever rereads.csv is changed) GitHub starts a fresh computer,
+# Every 6 hours (and whenever rereads.csv or a review in reviews/ changes) GitHub starts a fresh computer,
 # downloads this repository, runs scripts/update_books.py, and if goodreads.csv changed,
 # saves (commits) it back.
 # That commit makes GitHub Pages republish the site with the new books.
@@ -14,6 +14,8 @@ on:
   push:
     paths:
       - rereads.csv         # also run straight away whenever you change rereads.csv
+      - reviews/**          # …or add or edit a website-only review
+      - excerpts/**         # …or a favourite passage
 
 permissions:
   contents: write           # allows the job to commit the new goodreads.csv

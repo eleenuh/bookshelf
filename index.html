@@ -8,7 +8,8 @@
   <!-- Font from Google Fonts: EB Garamond, a classic book typeface, used for everything -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap">
+  <!-- Plus two fonts for the library card: Special Elite (typewriter) and Homemade Apple (handwriting) -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Homemade+Apple&family=Special+Elite&display=swap">
   <link rel="stylesheet" href="style.css">
   <!-- Papa Parse turns CSV text into JavaScript objects. The version is pinned so it never changes under us.
        "defer" means: download now, but run only after the HTML is parsed, in the order listed. -->
@@ -96,29 +97,59 @@
     </div>
   </dialog>
 
-  <!-- Book detail pop-up -->
-  <dialog id="detail" class="dialog detail" aria-labelledby="detail-title">
-    <div class="dialog-inner">
-      <form method="dialog"><button class="close">close</button></form>
-      <div class="detail-top">
-        <div id="detail-cover"></div>
-        <div class="detail-info">
-          <h2 id="detail-title" class="dialog-title"></h2>
-          <p id="detail-author" class="author"></p>
-          <div id="detail-rating"></div>
-          <dl class="facts">
-            <dt>Finished</dt><dd id="detail-read"></dd>
-            <dt>Times read</dt><dd id="detail-times"></dd>
-            <dt>Pages</dt><dd id="detail-pages"></dd>
-            <dt>Published</dt><dd id="detail-year"></dd>
-          </dl>
-          <a id="detail-link" class="link" target="_blank" rel="noopener">see it on Goodreads</a>
+  <!-- Book detail: a full-screen pop-up (still the same page, nothing new opens).
+       The cover you clicked glides from the shelf into its place on the left, then a library
+       card slides up out of a pocket underneath it. The details are on the right. -->
+  <dialog id="detail" class="detail" aria-labelledby="detail-title">
+    <button type="button" id="detail-close" class="detail-close" aria-label="Close">×</button>
+
+    <div class="detail-inner">
+      <!-- Left column: the big cover, with a library card tucked behind it. The top of the card
+           peeks out above the cover; clicking it slides the book down to show the whole card. -->
+      <div id="detail-left" class="detail-left">
+        <!-- An old library checkout card, filled in by app.js with every time I read this book.
+             It acts as a button (role="button", tabindex="0" lets you reach it with the keyboard). -->
+        <div id="library-card" class="library-card" role="button" tabindex="0" aria-expanded="false"
+             aria-label="Library card: when I read this book. Click to take it out." title="Take out the library card">
+          <p id="card-callno" class="card-callno"></p>
+          <p class="card-line"><span class="card-label">Author</span><span id="card-author" class="card-value"></span></p>
+          <p class="card-line"><span class="card-label">Title</span><span id="card-title" class="card-value"></span></p>
+          <table class="card-table">
+            <thead><tr><th>Borrower's Name</th><th>Date Returned</th></tr></thead>
+            <tbody id="card-rows"></tbody>
+          </table>
         </div>
+
+        <div id="detail-cover" class="detail-cover"></div>
       </div>
-      <section class="review">
-        <h3 class="small-label">What I thought</h3>
-        <p id="detail-review"></p>
-      </section>
+
+      <div class="detail-text">
+        <p id="detail-eyebrow" class="detail-eyebrow"></p>
+        <h2 id="detail-title" class="detail-title"></h2>
+        <p id="detail-author" class="detail-author"></p>
+        <div id="detail-rating" class="detail-rating"></div>
+
+        <!-- Label / value rows -->
+        <dl class="archive">
+          <div><dt>Finished</dt><dd id="detail-read"></dd></div>
+          <div><dt>Times read</dt><dd id="detail-times"></dd></div>
+          <div><dt>Pages</dt><dd id="detail-pages"></dd></div>
+          <div><dt>Published</dt><dd id="detail-year"></dd></div>
+        </dl>
+        <a id="detail-link" class="link" target="_blank" rel="noopener">see it on Goodreads</a>
+
+        <!-- A favourite passage (from excerpts/<Book Id>.txt), shown straight under the link.
+             Hidden when the book doesn't have one. -->
+        <figure id="excerpt-section" class="excerpt" hidden>
+          <blockquote id="detail-excerpt" class="excerpt-text"></blockquote>
+          <figcaption id="detail-excerpt-cite" class="excerpt-cite"></figcaption>
+        </figure>
+
+        <section class="notes">
+          <h3 class="notes-title">Thoughts</h3>
+          <p id="detail-review"></p>
+        </section>
+      </div>
     </div>
   </dialog>
 </body>

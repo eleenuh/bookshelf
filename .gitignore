@@ -1,0 +1,2 @@
+# Python creates these when it runs a script; they are not part of the site
+__pycache__/
