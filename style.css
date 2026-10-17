@@ -1001,3 +1001,46 @@ input::placeholder { color: var(--faint); font-style: italic; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------- Edit mode (only visible in a browser unlocked for editing) ---------- */
+.editor { margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px dashed var(--field-line); }
+
+.edit-form { display: flex; flex-direction: column; gap: 1.1rem; }
+.edit-field { display: flex; flex-direction: column; gap: 6px; }
+.edit-field em { text-transform: none; letter-spacing: 0; color: var(--faint); }
+
+.edit-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--field-line);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.edit-form textarea:focus { outline: none; border-color: var(--accent); }
+.edit-form input[type="file"] { font: inherit; font-size: 0.95rem; color: var(--author); }
+.edit-check { display: flex; align-items: center; gap: 8px; color: var(--author); font-size: 0.95rem; }
+
+.edit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.5rem; }
+.edit-lock { margin-left: auto; font-size: 0.9rem; color: var(--faint); }
+.edit-status { color: var(--author); font-style: italic; font-size: 0.95rem; }
+
+.unlock-form { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; }
+.unlock-text { color: var(--text-soft); }
+
+.unlock-form input {
+  width: 100%;
+  padding: 8px 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--field-line);
+  font: inherit;
+}
+
+.unlock-form input:focus { outline: none; border-bottom-color: var(--accent); }

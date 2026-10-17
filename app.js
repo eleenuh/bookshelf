@@ -626,6 +626,21 @@ function closeDetail() {
   }, cardWasOut ? LEAVE_CARD_OUT_MS : LEAVE_MS);
 }
 
+// The passage and the review in the book pop-up (also used by edit mode after saving)
+function renderNotes(book) {
+  // A favourite passage, if there is one. A last line starting with a dash ("— p. 42") is shown
+  // separately, as a small note saying where the passage is from.
+  const lines = book.excerpt.split("\n");
+  const cite = /^[—–-]/.test(lines.at(-1).trim()) && lines.length > 1 ? lines.pop().trim() : "";
+  $("#detail-excerpt").textContent = lines.join("\n").trim();
+  $("#detail-excerpt-cite").textContent = cite;
+  $("#excerpt-section").hidden = !book.excerpt; // no passage: show nothing at all
+
+  const review = $("#detail-review");
+  review.textContent = book.review || "Nothing written yet.";
+  review.classList.toggle("empty", !book.review);
+}
+
 // ---------- The photo tucked in the book ----------
 // A ragged outline for a torn photo or scrap of paper, as a CSS clip-path polygon.
 // It walks round the four edges in small steps, nudging each point in or out by a random amount;
@@ -662,7 +677,7 @@ function renderPhoto(book) {
   const img = $("#detail-photo");
   slip.hidden = true;
   left.classList.remove("has-photo");
-  if (!book.id) return;
+  if (!book.id || book.photoRemoved) return;
   const seed = hashText(book.id);
   slip.style.setProperty("--torn", tornOutline(seed, seed % 4, 4));
   slip.style.setProperty("--paper-torn", tornOutline(seed + 7, (seed + 2) % 4, 5));
@@ -671,7 +686,8 @@ function renderPhoto(book) {
     left.classList.add("has-photo");
   };
   img.onerror = () => {}; // no photo for this book: nothing slides out
-  img.src = `photos/${encodeURIComponent(book.id)}.jpg`;
+  // photoPreview is set by edit mode right after uploading, so the new photo shows straight away
+  img.src = book.photoPreview || `photos/${encodeURIComponent(book.id)}.jpg`;
 }
 
 function openDetail(book, from = null) {
@@ -696,17 +712,8 @@ function openDetail(book, from = null) {
   // Very old books have negative years in Goodreads (-600 means 600 BC)
   $("#detail-year").textContent = !book.year ? "unknown" : book.year < 0 ? `${-book.year} BC` : book.year;
 
-  // A favourite passage, if there is one. A last line starting with a dash ("— p. 42") is shown
-  // separately, as a small note saying where the passage is from.
-  const lines = book.excerpt.split("\n");
-  const cite = /^[—–-]/.test(lines.at(-1).trim()) && lines.length > 1 ? lines.pop().trim() : "";
-  $("#detail-excerpt").textContent = lines.join("\n").trim();
-  $("#detail-excerpt-cite").textContent = cite;
-  $("#excerpt-section").hidden = !book.excerpt; // no passage: show nothing at all
-
-  const review = $("#detail-review");
-  review.textContent = book.review || "Nothing written yet.";
-  review.classList.toggle("empty", !book.review);
+  renderNotes(book);
+  setUpEditor(book); // only does anything in a browser unlocked for editing
 
   // Opening the pop-up also replays its CSS animations (the text drifting up, the card sliding out)
   const detail = $("#detail");
@@ -804,6 +811,210 @@ function wireControls() {
   detail.addEventListener("close", tidyDetail); // a backup, in case it closes some other way
 }
 
+// ---------- Edit mode ----------
+// Lets me edit a book's thoughts, passage and photo right here on the site. Saving sends the files
+// to GitHub (reviews/<id>.txt, excerpts/<id>.txt, photos/<id>.jpg) using the GitHub API; the
+// GitHub Action then rebuilds goodreads.csv and the site updates for everyone in a minute or two.
+//
+// It only works in a browser unlocked with my GitHub access key (a "fine-grained token" limited to
+// this repository). The key is never in the site's code: it's typed in once, checked with GitHub,
+// and kept in this browser's localStorage. Without it there's no edit link, and GitHub would
+// refuse any save anyway. To unlock a device, open the site with #edit at the end of the address.
+
+const REPO = "eleenuh/bookshelf";
+const BRANCH = "main";
+const KEY_STORE = "bookshelf-github-key";
+const PHOTO_MAX_WIDTH = 800; // uploaded photos are shrunk to this width before saving
+
+function editKey() {
+  try { return localStorage.getItem(KEY_STORE) || ""; } catch { return ""; }
+}
+
+// Ask GitHub to do something, using my key. path is like "repos/eleenuh/bookshelf/contents/x.txt".
+async function github(path, options = {}) {
+  const response = await fetch(`https://api.github.com/${path}`, {
+    ...options,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${editKey()}`,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+    },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.message || `GitHub said ${response.status}`);
+  }
+  return response.status === 204 ? {} : response.json();
+}
+
+// Text -> base64 (what GitHub wants for file contents), keeping accents and other non-English letters
+function textToBase64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+// Save (or, with base64 = null, delete) one file in the repository. Returns false if nothing changed.
+async function saveFile(path, base64, message) {
+  const current = await github(`repos/${REPO}/contents/${path}?ref=${BRANCH}`);
+  if (base64 === null) {
+    if (!current) return false;
+    await github(`repos/${REPO}/contents/${path}`, {
+      method: "DELETE",
+      body: JSON.stringify({ message, sha: current.sha, branch: BRANCH }),
+    });
+    return true;
+  }
+  if (current && current.content && current.content.replace(/\n/g, "") === base64) return false;
+  await github(`repos/${REPO}/contents/${path}`, {
+    method: "PUT",
+    body: JSON.stringify({ message, content: base64, branch: BRANCH, ...(current ? { sha: current.sha } : {}) }),
+  });
+  return true;
+}
+
+// Shrink a photo to PHOTO_MAX_WIDTH and turn it into a JPEG (as base64), so uploads stay small
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, PHOTO_MAX_WIDTH / img.naturalWidth);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      URL.revokeObjectURL(img.src);
+      resolve({ dataUrl, base64: dataUrl.split(",")[1] });
+    };
+    img.onerror = () => reject(new Error("that file doesn't look like a photo"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+let editingBook = null;
+
+// Called whenever a book pop-up opens: shows the edit link only in an unlocked browser
+function setUpEditor(book) {
+  editingBook = book;
+  $("#editor").hidden = !editKey() || !book.id;
+  $("#edit-form").hidden = true;
+  $("#edit-open").hidden = false;
+  $("#edit-status").textContent = "";
+}
+
+function openEditForm() {
+  const book = editingBook;
+  $("#edit-review").value = book.review;
+  $("#edit-excerpt").value = book.excerpt;
+  $("#edit-photo").value = "";
+  $("#edit-photo-remove").checked = false;
+  $("#edit-form").hidden = false;
+  $("#edit-open").hidden = true;
+  $("#edit-status").textContent = "";
+  $("#edit-review").focus();
+}
+
+async function saveEdits(event) {
+  event.preventDefault();
+  const book = editingBook;
+  const status = $("#edit-status");
+  const saveButton = $("#edit-save");
+  const review = $("#edit-review").value.trim();
+  const excerpt = $("#edit-excerpt").value.trim();
+  const photoFile = $("#edit-photo").files[0];
+  const removePhoto = $("#edit-photo-remove").checked;
+  const id = encodeURIComponent(book.id);
+  const what = `"${book.title}"`;
+
+  saveButton.disabled = true;
+  status.textContent = "Saving…";
+  try {
+    const changed = [];
+    if (review !== book.review) {
+      if (await saveFile(`reviews/${id}.txt`, review ? textToBase64(review + "\n") : null, `Thoughts on ${what}`)) changed.push("thoughts");
+    }
+    if (excerpt !== book.excerpt) {
+      if (await saveFile(`excerpts/${id}.txt`, excerpt ? textToBase64(excerpt + "\n") : null, `Passage from ${what}`)) changed.push("passage");
+    }
+    let photo = null;
+    if (photoFile) {
+      photo = await shrinkPhoto(photoFile);
+      await saveFile(`photos/${id}.jpg`, photo.base64, `Photo for ${what}`);
+      changed.push("photo");
+    } else if (removePhoto) {
+      if (await saveFile(`photos/${id}.jpg`, null, `Remove photo for ${what}`)) changed.push("photo removed");
+    }
+
+    // Show the changes straight away in this browser (on every copy of a reread book)
+    for (const copy of state.books.concat(state.reading).filter((b) => b.id === book.id)) {
+      copy.review = review;
+      copy.excerpt = excerpt;
+      if (photo) { copy.photoPreview = photo.dataUrl; copy.photoRemoved = false; }
+      if (removePhoto && !photo) { copy.photoRemoved = true; copy.photoPreview = null; }
+    }
+    renderNotes(book);
+    renderPhoto(book);
+
+    $("#edit-form").hidden = true;
+    $("#edit-open").hidden = false;
+    status.textContent = changed.length
+      ? `Saved (${changed.join(", ")}). Everyone will see it in a minute or two.`
+      : "Nothing had changed.";
+  } catch (error) {
+    status.textContent = `Couldn't save: ${error.message}`;
+  } finally {
+    saveButton.disabled = false;
+  }
+}
+
+// Unlocking: check the key with GitHub (it must be allowed to change this repository), then keep it
+async function unlock(event) {
+  event.preventDefault();
+  const status = $("#unlock-status");
+  const key = $("#unlock-key").value.trim();
+  status.textContent = "Checking…";
+  try {
+    const response = await fetch(`https://api.github.com/repos/${REPO}`, {
+      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${key}` },
+    });
+    const repo = await response.json();
+    if (!response.ok || !repo.permissions || !repo.permissions.push) {
+      throw new Error("that key can't change this repository");
+    }
+    localStorage.setItem(KEY_STORE, key);
+    status.textContent = "";
+    $("#unlock").close();
+    alert("Edit mode is on in this browser. Open any book to see the edit link.");
+  } catch (error) {
+    status.textContent = `Not unlocked: ${error.message}.`;
+  }
+}
+
+function lockEditing() {
+  try { localStorage.removeItem(KEY_STORE); } catch {}
+  $("#editor").hidden = true;
+  alert("Editing is locked on this device. Open the site with #edit to unlock it again.");
+}
+
+function wireEditMode() {
+  $("#edit-open").addEventListener("click", openEditForm);
+  $("#edit-cancel").addEventListener("click", () => setUpEditor(editingBook));
+  $("#edit-form").addEventListener("submit", saveEdits);
+  $("#edit-lock").addEventListener("click", lockEditing);
+  $("#unlock-form").addEventListener("submit", unlock);
+  $("#unlock-cancel").addEventListener("click", () => $("#unlock").close());
+
+  // Opening the site with #edit at the end shows the unlock box (then tidies the address)
+  if (location.hash === "#edit") {
+    history.replaceState(null, "", location.pathname + location.search);
+    $("#unlock-key").value = "";
+    $("#unlock").showModal();
+  }
+}
+
 async function init() {
   let allBooks;
   try {
@@ -817,6 +1028,7 @@ async function init() {
   state.reading = allBooks.filter((b) => b.shelf === "currently-reading");
 
   wireControls();
+  wireEditMode();
   renderStats(state.books);
   renderReading();
   buildChart();

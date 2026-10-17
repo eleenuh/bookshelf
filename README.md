@@ -74,6 +74,20 @@ Book Id, e.g. `excerpts/52357.txt`. It appears in the book's pop-up straight und
 (Finished, Pages…), above "Thoughts". A last line starting with a dash (`— p. 42`) is shown as a small note saying where
 it's from. See `excerpts/README.md`.
 
+## Edit mode (editing on the website itself)
+
+I can edit a book's thoughts, passage and photo straight on the live site; visitors never see this.
+
+- **Unlock a device (once):** open `https://eleenuh.github.io/bookshelf/#edit` and paste my GitHub
+  access key. The site checks it with GitHub and remembers it in that browser only.
+- **Edit:** open any book, click **edit this book** at the bottom, change things, **save**. The
+  site updates for everyone in a minute or two (photos are shrunk to 800px automatically).
+- **Lock a device:** click **lock editing on this device** in the edit panel (e.g. on a shared computer).
+
+The access key is a GitHub *fine-grained token* limited to this repository with "Contents: Read and
+write". It is never stored in the site's code. If a device is lost, delete the token on GitHub
+(Settings → Developer settings → Fine-grained tokens) and make a new one.
+
 ## Photos
 
 A book can have a photo tucked inside it: when its pop-up opens, the photo slides out from behind
