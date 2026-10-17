@@ -197,12 +197,12 @@ function groupBooks(books) {
 
 // ---------- 4. Building pieces of the page ----------
 
-// Rating as five dots: ●●●●○. Unrated books say so in words instead.
+// Rating as five stars: ★★★★☆. Unrated books say so in words instead.
 function createDots(rating) {
   if (!rating) return el("span", "dots unrated", "not rated yet");
-  const dots = el("span", "dots", "●".repeat(rating) + "○".repeat(5 - rating));
+  const dots = el("span", "dots", "★".repeat(rating) + "☆".repeat(5 - rating));
   dots.setAttribute("role", "img");
-  dots.setAttribute("aria-label", `${rating} out of 5`); // screen readers say this instead of "black circle black circle…"
+  dots.setAttribute("aria-label", `${rating} out of 5`); // screen readers say this instead of "black star black star…"
   return dots;
 }
 
@@ -210,10 +210,10 @@ function createDots(rating) {
 const TONES = [
   // All taken from (or blended from) the site's four colours, so they sit well on the page
   { bg: "#6b5e3b", ink: "#fbf7f0" }, // olive-bronze
-  { bg: "#47512f", ink: "#e8e0d1" }, // deep olive green
-  { bg: "#e8e0d1", ink: "#47512f" }, // sand
+  { bg: "#636b2f", ink: "#e8e0d1" }, // deep olive green
+  { bg: "#e8e0d1", ink: "#636b2f" }, // sand
   { bg: "#887d5f", ink: "#fbf7f0" }, // light olive
-  { bg: "#d6cbb5", ink: "#47512f" }, // darker sand
+  { bg: "#d6cbb5", ink: "#636b2f" }, // darker sand
   { bg: "#595735", ink: "#e8e0d1" }, // between the two dark olives
 ];
 
@@ -276,7 +276,7 @@ function createPageStack(book) {
   return stack;
 }
 
-// One book: the cover, then title, author, rating dots, a line of the review and the date.
+// One book: the cover, then title, author, rating stars, a line of the review and the date.
 // The date is created separately (book.dateLine) because its wording depends on the section.
 function createEntry(book) {
   // A <button> makes the whole entry clickable, focusable with Tab and openable with Enter/Space.
@@ -553,10 +553,10 @@ function toggleLibraryCard(open) {
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const GLIDE = { duration: 550, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" };
-// How long the card takes to slide back behind the book before the cover glides home (matches
-// style.css). If the card was taken out, the book also has to slide back up over it, which takes longer.
-const LEAVE_MS = 600; // long enough for the photo to swing back in (0.55s in style.css)
-const LEAVE_CARD_OUT_MS = 600;
+// How long to wait before the cover glides home, so everything is tucked away first (matches style.css):
+const LEAVE_MS = 250;          // the library card slides back behind the book
+const LEAVE_CARD_OUT_MS = 500; // …or, if it was taken out, the book slides back up over it
+const LEAVE_PHOTO_MS = 600;    // a photo swings back in (only for books that have one)
 let openedFrom = null; // the cover on the shelf this pop-up was opened from
 let closing = false;
 
@@ -609,6 +609,7 @@ function closeDetail() {
   }
   // If the card is out, the book slides back up over it first, so it lands exactly on its shelf spot
   const cardWasOut = $("#detail-left").classList.contains("card-open");
+  const hasPhoto = $("#detail-left").classList.contains("has-photo"); // only then wait for it to swing back
   toggleLibraryCard(false);
   // First the details and the × fade out and the library card slides back down behind the book
   // (the "is-leaving" class, see style.css) while the cover stays put. Only then does the cover
@@ -623,7 +624,7 @@ function closeDetail() {
     // the faded, invisible pop-up could stay open on top of the page.
     if (glide) glide.finished.then(finish, finish);
     setTimeout(finish, GLIDE.duration + 50);
-  }, cardWasOut ? LEAVE_CARD_OUT_MS : LEAVE_MS);
+  }, Math.max(cardWasOut ? LEAVE_CARD_OUT_MS : LEAVE_MS, hasPhoto ? LEAVE_PHOTO_MS : 0));
 }
 
 // The passage and the review in the book pop-up (also used by edit mode after saving)

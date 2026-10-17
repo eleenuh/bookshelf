@@ -7,7 +7,7 @@
 :root {
   /* The four main colours */
   --bg: #fbf8f1;         /* warm off-white page */
-  --text: #47512f;       /* deep olive green ink: main text, the line above each year */
+  --text: #636b2f;       /* olive green ink: main text, the line above each year */
   --accent: #6b5e3b;     /* olive-bronze: authors, rating dots, hover, selected */
   --line: #e8e0d1;       /* sand: hairlines, empty cover boxes */
 
@@ -309,12 +309,13 @@ input::placeholder { color: var(--faint); font-style: italic; }
 .entry-title { font-size: 22px; line-height: 1.2; }
 .entry:hover .entry-title { color: var(--accent); }
 
+/* The rating stars (the class is still called "dots" from when they were circles) */
 .dots {
   display: block;
   padding-top: 4px;
   color: var(--accent);
-  font-size: 12px;
-  letter-spacing: 0.16em;
+  font-size: 14px;
+  letter-spacing: 0.1em;
 }
 
 .dots.unrated { font-size: 12px; letter-spacing: 0.16em; }
@@ -849,7 +850,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
 
 .detail-author { margin-top: 0.35rem; color: var(--accent); font-size: 1.25rem; font-style: italic; }
 
-.detail-rating .dots { padding-top: 0.75rem; font-size: 14px; }
+.detail-rating .dots { padding-top: 0.75rem; font-size: 17px; }
 
 /* Label / value rows with hairlines between them */
 .archive { margin: 2rem 0 1.25rem; }
