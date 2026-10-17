@@ -490,6 +490,51 @@ function renderLibraryCard(book) {
   $("#card-rows").replaceChildren(...rows);
 }
 
+// ---------- Library card sound ----------
+// A page-turning sound (sounds/page-turn.mp3, from Freesound/Pixabay, free to use) plays when someone
+// takes the card out or tucks it back in. Tucking it in plays it a little faster and higher, so the
+// two directions sound slightly different. Only played when someone clicks the card or the book,
+// never by itself (e.g. not when the pop-up closes).
+//
+// It's played with the Web Audio API rather than an <audio> element, because that starts instantly.
+// The recording begins with a third of a second of silence, so playback skips straight past it.
+const CARD_SOUND_VOLUME = 0.6;  // 0 = silent, 1 = full volume
+const CARD_SOUND_START = 0.32;  // seconds of silence at the start of the file to skip
+
+// Download the file as soon as the page loads, so it's ready before anyone clicks
+const cardSoundFile = fetch("sounds/page-turn.mp3").then((r) => r.arrayBuffer()).catch(() => null);
+let audioCtx = null;      // the browser's sound system, created on the first click (browsers require that)
+let cardSoundBuffer = null; // the decoded sound, ready to play
+
+// Get the sound system and the decoded sound ready. Called when a book is opened, so that by the
+// time someone clicks the card there's nothing left to prepare.
+async function prepareCardSound() {
+  try {
+    audioCtx ??= new AudioContext();
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+    if (!cardSoundBuffer) {
+      const data = await cardSoundFile;
+      if (data) cardSoundBuffer = await audioCtx.decodeAudioData(data.slice(0)); // slice: decode a copy
+    }
+  } catch {
+    // No Web Audio, or the file couldn't be loaded: no sound
+  }
+}
+
+async function playCardSound(goingOut) {
+  if (!CARD_SOUND_VOLUME) return;
+  if (!cardSoundBuffer) await prepareCardSound();
+  if (!cardSoundBuffer) return;
+  // Every play is a fresh "source", so a quick second click plays over the first instead of cutting it off
+  const source = audioCtx.createBufferSource();
+  source.buffer = cardSoundBuffer;
+  source.playbackRate.value = goingOut ? 1 : 1.25;
+  const volume = audioCtx.createGain();
+  volume.gain.value = CARD_SOUND_VOLUME;
+  source.connect(volume).connect(audioCtx.destination);
+  source.start(0, CARD_SOUND_START); // start now, from just after the silence
+}
+
 // Take the card out (the book slides down to show all of it) or tuck it back in.
 // --card-h tells the CSS how far to move the book: the card's own height.
 function toggleLibraryCard(open) {
@@ -510,8 +555,8 @@ const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const GLIDE = { duration: 550, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" };
 // How long the card takes to slide back behind the book before the cover glides home (matches
 // style.css). If the card was taken out, the book also has to slide back up over it, which takes longer.
-const LEAVE_MS = 250;
-const LEAVE_CARD_OUT_MS = 500;
+const LEAVE_MS = 600; // long enough for the photo to swing back in (0.55s in style.css)
+const LEAVE_CARD_OUT_MS = 600;
 let openedFrom = null; // the cover on the shelf this pop-up was opened from
 let closing = false;
 
@@ -581,9 +626,59 @@ function closeDetail() {
   }, cardWasOut ? LEAVE_CARD_OUT_MS : LEAVE_MS);
 }
 
+// ---------- The photo tucked in the book ----------
+// A ragged outline for a torn photo or scrap of paper, as a CSS clip-path polygon.
+// It walks round the four edges in small steps, nudging each point in or out by a random amount;
+// one edge (the "torn" one) gets much bigger jags than the others. The randomness comes from the
+// Book Id (seed), so a book's photo is always torn the same way, but differently from other books.
+function tornOutline(seed, tornEdge, roughness) {
+  let n = seed || 1;
+  const random = () => ((n = (n * 9301 + 49297) % 233280) / 233280); // simple repeatable "random"
+  const edges = [
+    (t) => [t, 0],     // top: left to right
+    (t) => [100, t],   // right: top to bottom
+    (t) => [100 - t, 100], // bottom: right to left
+    (t) => [0, 100 - t],   // left: bottom to top
+  ];
+  const points = [];
+  edges.forEach((edge, i) => {
+    const jag = i === tornEdge ? roughness : roughness / 4;
+    for (let t = 0; t < 100; t += 4 + random() * 4) {
+      const [x, y] = edge(t);
+      const inward = random() * jag;
+      // push the point inwards, away from the edge it's on
+      const px = i === 1 ? x - inward : i === 3 ? x + inward : x;
+      const py = i === 0 ? y + inward : i === 2 ? y - inward : y;
+      points.push(`${px.toFixed(1)}% ${py.toFixed(1)}%`);
+    }
+  });
+  return `polygon(${points.join(", ")})`;
+}
+
+// Show photos/<Book Id>.jpg behind the cover if it exists; hide the photo otherwise.
+function renderPhoto(book) {
+  const slip = $("#photo-slip");
+  const left = $("#detail-left");
+  const img = $("#detail-photo");
+  slip.hidden = true;
+  left.classList.remove("has-photo");
+  if (!book.id) return;
+  const seed = hashText(book.id);
+  slip.style.setProperty("--torn", tornOutline(seed, seed % 4, 4));
+  slip.style.setProperty("--paper-torn", tornOutline(seed + 7, (seed + 2) % 4, 5));
+  img.onload = () => {
+    slip.hidden = false;
+    left.classList.add("has-photo");
+  };
+  img.onerror = () => {}; // no photo for this book: nothing slides out
+  img.src = `photos/${encodeURIComponent(book.id)}.jpg`;
+}
+
 function openDetail(book, from = null) {
+  prepareCardSound(); // clicking a book counts as permission to play sound, so get it ready now
   $("#detail-cover").replaceChildren(createPageStack(book));
   renderLibraryCard(book);
+  renderPhoto(book);
   // The small label above the title
   $("#detail-eyebrow").textContent = book.shelf === "currently-reading"
     ? "Reading now"
@@ -612,10 +707,6 @@ function openDetail(book, from = null) {
   const review = $("#detail-review");
   review.textContent = book.review || "Nothing written yet.";
   review.classList.toggle("empty", !book.review);
-
-  const link = $("#detail-link");
-  link.hidden = !book.id;
-  link.href = `https://www.goodreads.com/book/show/${encodeURIComponent(book.id)}`;
 
   // Opening the pop-up also replays its CSS animations (the text drifting up, the card sliding out)
   const detail = $("#detail");
@@ -683,15 +774,21 @@ function wireControls() {
   // The library card: click it (or press Enter / Space on it) to take it out or tuck it back in.
   // Clicking the book while the card is out also tucks it back in.
   const card = $("#library-card");
-  card.addEventListener("click", () => toggleLibraryCard());
+  // Each of these also plays the page sound.
+  const flipCard = () => {
+    const goingOut = !$("#detail-left").classList.contains("card-open");
+    toggleLibraryCard(goingOut);
+    playCardSound(goingOut);
+  };
+  card.addEventListener("click", flipCard);
   card.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      toggleLibraryCard();
+      flipCard();
     }
   });
   $("#detail-cover").addEventListener("click", () => {
-    if ($("#detail-left").classList.contains("card-open")) toggleLibraryCard(false);
+    if ($("#detail-left").classList.contains("card-open")) flipCard();
   });
 
   // The book pop-up's × button, and the Esc key (which would otherwise close it instantly)

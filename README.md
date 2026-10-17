@@ -19,6 +19,7 @@ and it updates itself from my Goodreads shelves every 6 hours.
 | `rereads.csv` | Books I've read more than once, and how many times (see "Rereads" below). |
 | `textures/wear.webp` | The see-through "worn book" texture (scuffs, creases, dust) laid over every cover. |
 | `scripts/make_wear_texture.py` | Draws `textures/wear.webp`. Only needed to change the texture: `python scripts/make_wear_texture.py`. |
+| `sounds/page-turn.mp3` | The page sound played when the library card is taken out or tucked in. "Turning book page" from the Freesound community on Pixabay, free to use. |
 | `covers/` | Optional cover images named by Goodreads Book Id, e.g. `covers/54493401.jpg`. These win over every other cover. |
 
 ## How the automatic updates work
@@ -69,9 +70,16 @@ website, add a text file to the `reviews/` folder named by the book's Book Id, e
 ## Excerpts
 
 To share a passage I love from a book, add a text file to the `excerpts/` folder named by the book's
-Book Id, e.g. `excerpts/52357.txt`. It appears in the book's pop-up straight under "see it on
-Goodreads", above "Thoughts". A last line starting with a dash (`— p. 42`) is shown as a small note saying where
+Book Id, e.g. `excerpts/52357.txt`. It appears in the book's pop-up straight under the details
+(Finished, Pages…), above "Thoughts". A last line starting with a dash (`— p. 42`) is shown as a small note saying where
 it's from. See `excerpts/README.md`.
+
+## Photos
+
+A book can have a photo tucked inside it: when its pop-up opens, the photo slides out from behind
+the cover on a scrap of paper, with a faded vintage look and torn edges (all done in code, so any
+normal photo works). Add one by saving it as `photos/<Book Id>.jpg`, e.g. `photos/10244739.jpg`.
+A landscape photo about 800px wide (around 100 KB) is plenty. Books without a photo show nothing.
 
 ## Covers
 

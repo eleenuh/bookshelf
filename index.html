@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Elina's Bookshelf</title>
+  <!-- The icon in the browser tab (the flower half of the stamp logo), and the one phones use
+       when the site is saved to the home screen -->
+  <link rel="icon" type="image/png" href="images/favicon.png">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
   <!-- Font from Google Fonts: EB Garamond, a classic book typeface, used for everything -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,18 +17,22 @@
   <!-- The ?v=… on style.css and app.js is a version label. Browsers keep saved copies of these files,
        so after changing either one, change this label (e.g. to today's date) in BOTH links below.
        The new label makes every browser download the fresh files instead of using an old copy. -->
-  <link rel="stylesheet" href="style.css?v=2026-10-17">
+  <link rel="stylesheet" href="style.css?v=2026-10-19a">
   <!-- Papa Parse turns CSV text into JavaScript objects. The version is pinned so it never changes under us.
        "defer" means: download now, but run only after the HTML is parsed, in the order listed. -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
-  <script src="app.js?v=2026-10-17" defer></script>
+  <script src="app.js?v=2026-10-19a" defer></script>
 </head>
 <body>
   <div class="page">
     <!-- Left column: who you are, what you're reading now, and the search and filters -->
     <aside class="side" aria-label="About and filters">
       <div class="intro">
-        <h1>Elina's<br>Bookshelf</h1>
+        <!-- The stamp logo beside the title. alt="" because the title right next to it says the same -->
+        <div class="title-row">
+          <img class="logo" src="images/logo.png" alt="" width="160" height="400">
+          <h1>Elina's<br>Bookshelf</h1>
+        </div>
         <p>Every book I've finished, in the order I read them. Feel free to look around!</p>
       </div>
 
@@ -123,6 +131,14 @@
           </table>
         </div>
 
+        <!-- A photo for this book (photos/<Book Id>.jpg), on a scrap of paper. It's hidden behind the
+             cover and slides out once the book has opened. Books without a photo don't show it. -->
+        <div id="photo-slip" class="photo-slip" hidden aria-hidden="true">
+          <span class="photo-paper"></span>
+          <span class="photo-print"><img id="detail-photo" alt=""></span>
+          <span class="photo-tape"></span>
+        </div>
+
         <div id="detail-cover" class="detail-cover"></div>
       </div>
 
@@ -139,7 +155,6 @@
           <div><dt>Pages</dt><dd id="detail-pages"></dd></div>
           <div><dt>Published</dt><dd id="detail-year"></dd></div>
         </dl>
-        <a id="detail-link" class="link" target="_blank" rel="noopener">see it on Goodreads</a>
 
         <!-- A favourite passage (from excerpts/<Book Id>.txt), shown straight under the link.
              Hidden when the book doesn't have one. -->

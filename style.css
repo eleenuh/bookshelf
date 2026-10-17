@@ -121,6 +121,11 @@ button { cursor: pointer; }
 
 .intro { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
 h1 { font-size: 38px; line-height: 1.1; }
+
+/* The stamp logo to the left of the title, about as tall as a stamp on an envelope.
+   width: auto keeps its shape (it's 2.5 times taller than wide). */
+.title-row { display: flex; align-items: center; gap: 18px; }
+.logo { display: block; flex: none; width: auto; height: 120px; }
 .intro p { color: var(--text-soft); }
 
 /* Find box, then the two small dropdowns, then how many books are showing */
@@ -241,7 +246,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
   font-size: 17px;
 }
 
-.mini-book .cover { flex: none; width: 48px; }
+.mini-book .cover { flex: none; width: 72px; } /* the Reading now cover */
 .mini-title { display: block; line-height: 1.2; }
 .mini-book:hover .mini-title { color: var(--accent); }
 
@@ -488,8 +493,8 @@ input::placeholder { color: var(--faint); font-style: italic; }
 .ph-author { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
 
 /* Small covers (Reading now) get small placeholder text */
-.mini-book .cover-placeholder { padding: 4px 4px 4px 8px; }
-.mini-book .ph-title { font-size: 8px; }
+.mini-book .cover-placeholder { padding: 6px 6px 6px 10px; }
+.mini-book .ph-title { font-size: 11px; }
 .mini-book .ph-author { display: none; }
 
 /* ---------- Reading stats pop-up ---------- */
@@ -567,21 +572,41 @@ input::placeholder { color: var(--faint); font-style: italic; }
   transition: opacity 0.2s ease;
 }
 
-.detail.is-leaving .library-card {
+.detail[open].is-leaving .library-card {
   animation: none;
   transform: translateY(var(--peek));
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.6, 1);
 }
 
-.detail.is-gliding .library-card { opacity: 0; }
+/* [open] makes these rules win over the opening animation rules further down */
+.detail[open].is-leaving .photo-slip {
+  animation: photo-in 0.55s ease-in-out forwards; /* swings back up behind the book */
+}
+
+.detail.is-gliding .library-card,
+.detail.is-gliding .photo-slip { opacity: 0; }
 /* The card waits, invisible, until the cover has landed on top of it (the glide takes 0.55s);
    otherwise it would show by itself while the cover is still on its way. Then it rises into view. */
 .detail[open] .library-card { animation: card-peek 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.55s backwards; }
+/* The photo waits the same way, then slides out from behind the cover a moment after the card */
+.detail[open] .photo-slip { animation: photo-out 0.9s cubic-bezier(0.3, 0.6, 0.3, 1) 0.7s backwards; }
 
 @keyframes detail-drift { from { opacity: 0; transform: translateY(18px); } }
 @keyframes detail-appear { from { opacity: 0; } }
 /* 0%: invisible and fully behind the cover (this is also how it waits during the delay),
    1%: visible but still hidden behind the cover, 100%: risen to its resting peek */
+/* The photo starts invisible and hidden behind the cover, then slides out to its place */
+@keyframes photo-out {
+  0% { opacity: 0; transform: var(--tucked); }
+  1% { opacity: 1; transform: var(--tucked); }
+  100% { transform: var(--slid); } /* swings down round its hinge */
+}
+
+@keyframes photo-in {
+  0% { transform: var(--slid); }
+  100% { transform: var(--tucked); } /* swings back up behind the book */
+}
+
 @keyframes card-peek {
   0% { opacity: 0; transform: translateY(var(--peek)); }
   1% { opacity: 1; transform: translateY(var(--peek)); }
@@ -598,11 +623,12 @@ input::placeholder { color: var(--faint); font-style: italic; }
   padding: 8vh 3rem 12vh;
 }
 
-/* Left column: the big cover, with the library card tucked behind it.
+/* Left column: the big cover, with the library card and photo tucked behind it.
    --peek is how much of the card shows above the cover. The column has that much space at the
    top, the card starts at the very top, and the cover sits over the rest of it. */
 .detail-left {
   --peek: 42px;
+  --cover-h: 390px; /* the cover's height (the column is 260px wide, covers are 2:3) */
   position: sticky; /* stays in view while a long review scrolls past */
   top: 8vh;
   padding-top: var(--peek);
@@ -728,6 +754,87 @@ input::placeholder { color: var(--faint); font-style: italic; }
 /* A handwritten name, in blue-black ink */
 .hand { color: #3a4a6b; font-family: "Homemade Apple", cursive; font-size: 11px; }
 
+/* ---- A photo tucked in the book ----
+   photos/<Book Id>.jpg, if there is one (app.js shows .photo-slip only when the photo loads).
+   It's a little wider than the cover. Tucked in (--tucked), it's shrunk to fit hidden behind the
+   cover; slid out (the transform below), it sits down and to the left, tilted, peeking out from
+   under the book. It sits on a scrap of paper.
+   --torn and --paper-torn are ragged outlines made by app.js from the Book Id, so every photo is
+   torn differently. */
+.photo-slip {
+  position: absolute;
+  z-index: 0; /* behind the cover, like the card */
+  /* It swings out like a door. The hinge is its top-right corner, pinned near the bottom-right of
+     the book (--hinge-inset from the book's right edge, --hinge-y down). Tucked, it's turned 90° so
+     it stands upright, hidden behind the book; it swings down until it lies flat just beneath the
+     book, reaching out past its lower-left corner, with only its top edge tucked under the book. */
+  --photo-w: 275px;
+  --hinge-inset: 18px;
+  --hinge-y: calc(var(--peek) + var(--cover-h) - 30px);
+  --tucked: rotate(90deg); /* upright, hidden behind the cover */
+  --slid: rotate(-4deg);   /* swung down flat, slightly tilted (its resting place) */
+  top: var(--hinge-y);
+  left: calc(100% - var(--hinge-inset) - var(--photo-w)); /* so its top-right corner is the hinge */
+  width: var(--photo-w);
+  transform-origin: top right; /* the hinge */
+  transform: var(--slid);
+  filter: drop-shadow(0 6px 10px rgb(71 81 47 / 0.3)); /* a shadow that follows the torn edges */
+}
+
+/* The scrap of paper under the photo: a little bigger, tilted a bit differently, ragged edges */
+.photo-paper {
+  position: absolute;
+  inset: -10px -14px -16px -8px;
+  background: linear-gradient(160deg, #f3ecdc, #e2d5bb);
+  clip-path: var(--paper-torn);
+  transform: rotate(3deg);
+}
+
+/* The printed photo: a cream border, faded old colours, and torn edges */
+.photo-print {
+  position: relative;
+  display: block;
+  padding: 7px;
+  background: #f5efe2;
+  clip-path: var(--torn);
+}
+
+.photo-print img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  /* faded, warm, slightly washed-out: like a print left in the sun */
+  filter: sepia(0.3) saturate(0.85) contrast(0.98) brightness(1.04);
+}
+
+/* Wear on top of the photo: the same scuffs as the book covers, plus darker edges (a vignette) */
+.photo-print::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  background: url("textures/wear.webp") 30% 60% / 250% 250% no-repeat;
+  box-shadow: inset 0 0 22px rgb(60 45 25 / 0.35);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* A strip of tape over the top-left corner (the one that shows) */
+.photo-tape {
+  position: absolute;
+  top: -9px;
+  left: 4%;
+  width: 70px;
+  height: 22px;
+  background: rgb(236 226 200 / 0.75);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  transform: rotate(-12deg);
+  clip-path: polygon(0 8%, 6% 0, 14% 6%, 22% 0, 100% 3%, 96% 50%, 100% 97%, 90% 100%, 82% 94%, 0 100%, 4% 50%);
+}
+
+/* Room below the book for the photo, so it never covers anything underneath (on phones, the text) */
+.detail-left.has-photo { padding-bottom: 225px; } /* room beneath the book for the photo */
+
 /* Small capitals above the title, e.g. "Read in 2025" */
 .detail-eyebrow {
   margin-bottom: 0.5rem;
@@ -789,7 +896,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
 
 #detail-review.empty { color: var(--faint); font-style: italic; }
 
-/* A favourite passage, straight under "see it on Goodreads": the quote in italics, with a thin
+/* A favourite passage, straight under the detail rows: the quote in italics, with a thin
    olive line down its left side */
 .excerpt { margin: 2.25rem 0 0; }
 
@@ -821,10 +928,24 @@ input::placeholder { color: var(--faint); font-style: italic; }
   background: var(--bg);
   border: 1px solid var(--field-line);
   border-radius: 50%;
-  font-size: 1.4rem;
-  line-height: 1;
+  font-size: 0; /* hide the "×" character: its position depends on the font, so the × is drawn below */
   transition: background-color 0.3s, color 0.3s, transform 0.3s;
 }
+
+/* The × itself: two thin lines crossing at the exact centre of the circle */
+.detail-close::before,
+.detail-close::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 1.5px;
+  background: currentColor;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.detail-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
 
 .detail-close:hover { color: var(--bg); background: var(--accent); transform: rotate(90deg); }
 
@@ -868,6 +989,9 @@ input::placeholder { color: var(--faint); font-style: italic; }
 @media (max-width: 760px) {
   .detail-inner { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding: 6vh 1.25rem 10vh; }
   .detail-left { position: relative; top: 0; width: 220px; justify-self: center; } /* relative, not sticky: the card still positions itself inside the column */
+  .detail-left.has-photo { padding-bottom: 180px; }
+  .photo-slip { --photo-w: 220px; --hinge-inset: 25px; } /* a little smaller, so it stays on screen */
+  .detail-left { --cover-h: 330px; } /* the column is 220px wide on phones */
   .detail-title { font-size: 2.3rem; }
   .archive dt { flex-basis: 100px; }
   .archive > div { gap: 1rem; }
