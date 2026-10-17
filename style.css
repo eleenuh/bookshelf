@@ -1,23 +1,66 @@
 /* style.css — all the visuals.
    A reading journal: one classic serif (EB Garamond), a quiet left column, and the books grouped
    under big grey year headings. Each book has its cover (with a spine shadow so it looks like a
-   real book), then the title, author, rating dots, a line from the review and the date finished.
+   real book), then the title, author, rating stars and the date finished.
    Colours live in CSS variables on :root, so changing a colour means changing it in one place. */
 
+/* Handwriting fonts by Khurasan (free versions), kept in fonts/. The one named in --hand is used in
+   the book pop-up for the answers under Finished, Times read, Pages and Published, and for the text
+   under Impressions. To switch, change --hand in :root. */
+@font-face {
+  font-family: "Royalty Free";
+  src: url("fonts/royalty-free.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "High Empathy";
+  src: url("fonts/high-empathy.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Mayonice";
+  src: url("fonts/mayonice.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DS Gabriele";
+  src: url("fonts/ds-gabriele.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Biedermeier Kursiv";
+  src: url("fonts/biedermeier-kursiv.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "WC Mano Negra";
+  src: url("fonts/wc-mano-negra.ttf") format("truetype");
+  font-display: swap;
+}
+
 :root {
+  --hand-ink: #001163; /* dark navy, like a ballpoint pen: the colour of the handwriting */
+  --hand: "WC Mano Negra"; /* the handwriting font on the book page (or "Biedermeier Kursiv", "DS Gabriele", "Mayonice", "High Empathy", "Royalty Free") */
+
   /* The four main colours */
-  --bg: #fbf8f1;         /* warm off-white page */
+  --bg: #fff5dd;         /* warm cream page */
   --text: #636b2f;       /* olive green ink: main text, the line above each year */
   --accent: #6b5e3b;     /* olive-bronze: authors, rating dots, hover, selected */
   --line: #e8e0d1;       /* sand: hairlines, empty cover boxes */
 
   /* In-between shades, made by blending the accent or text into the background,
      so everything stays in the same colour family */
-  --text-soft: #626a4c;  /* intro paragraph, review lines (text, a little lighter) */
+  --text-soft: #626a4c;  /* intro paragraph and edit-mode text (text, a little lighter) */
   --author: var(--accent);
   --muted: #887d5f;      /* small labels, unselected options (accent at 80%) */
   --faint: #9d947b;      /* dates (accent at 65%) */
-  --year: #a59c84;       /* the big year numbers (accent at 60%) */
+  --year: #a59c84;       /* the chart bars (accent at 60%) */
+  --red: #cb2b31;        /* the red of the stamp logo: the big year numbers, "Reading now", "Find" and the rating stars */
   --field-line: #d6cbb5; /* underline of the search box and dropdowns (a darker sand) */
 
   /* Worn look on the covers (see "Covers" below) */
@@ -68,6 +111,9 @@ button { cursor: pointer; }
   text-transform: uppercase;
   font-variant-numeric: lining-nums;
 }
+
+/* "Reading now" and "Find" in the left column are red; small labels elsewhere stay grey */
+.side .small-label { color: var(--red); }
 
 /* Text that acts as a link or button: italic and underlined */
 .link {
@@ -164,9 +210,11 @@ h1 { font-size: 38px; line-height: 1.1; }
 .find input:focus { outline: none; border-bottom-color: var(--accent); }
 input::placeholder { color: var(--faint); font-style: italic; }
 
-.status-line { margin-top: 4px; color: var(--muted); font-size: 16px; font-style: italic; }
+/* The book count, and "show everything" when a filter is on. Flex with a column gap means the space
+   between them only appears when they share a line; if it wraps, the link starts at the left edge. */
+.status-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; margin-top: 4px; color: var(--muted); font-size: 16px; font-style: italic; }
 .status.error { color: var(--accent); font-style: normal; }
-.status-line .link { margin-left: 6px; font-size: 16px; }
+.status-line .link { font-size: 16px; }
 
 /* "reading stats": a small outlined button at the bottom of the left column */
 .stats-button {
@@ -270,7 +318,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
 .year-label { flex: 0 0 100px; display: flex; flex-direction: column; gap: 4px; }
 
 .year-heading {
-  color: var(--year);
+  color: var(--red);
   font-size: 40px;
   line-height: 1;
   font-variant-numeric: lining-nums;
@@ -313,24 +361,12 @@ input::placeholder { color: var(--faint); font-style: italic; }
 .dots {
   display: block;
   padding-top: 4px;
-  color: var(--accent);
+  color: var(--red); /* the stamp-logo red, on the shelf and on the book page */
   font-size: 14px;
   letter-spacing: 0.1em;
 }
 
 .dots.unrated { font-size: 12px; letter-spacing: 0.16em; }
-
-/* Just the start of the review: -webkit-line-clamp cuts it off after three lines with "…" */
-.entry-review {
-  display: -webkit-box;
-  overflow: hidden;
-  margin-top: 8px;
-  color: var(--text-soft);
-  font-size: 17px;
-  line-height: 1.4;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
 
 .entry-date { padding-top: 8px; color: var(--faint); font-size: 14px; font-style: italic; }
 
@@ -510,7 +546,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
   box-shadow: 0 30px 60px -20px rgb(71 81 47 / 0.35);
 }
 
-.dialog::backdrop { background: rgb(251 248 241 / 0.85); } /* the page colour, see-through */
+.dialog::backdrop { background: rgb(255 245 221 / 0.85); } /* the page colour, see-through */
 
 .dialog-inner { position: relative; padding: 48px; }
 
@@ -684,6 +720,10 @@ input::placeholder { color: var(--faint); font-style: italic; }
   line-height: 1.3;
   cursor: pointer;
   transition: transform 0.35s ease;
+  /* Never taller than the cover: while it slides in and out behind the book (opening and closing
+     the pop-up), it must stay completely hidden, or its bottom would poke out under the cover */
+  max-height: var(--cover-h);
+  overflow: hidden;
 }
 
 /* Hovering (or reaching it with the keyboard) nudges the card up, as if it's about to be pulled out */
@@ -839,7 +879,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
 /* Small capitals above the title, e.g. "Read in 2025" */
 .detail-eyebrow {
   margin-bottom: 0.5rem;
-  color: var(--accent);
+  color: var(--red);
   font-size: 1.05rem;
   font-variant: small-caps;
   letter-spacing: 0.14em;
@@ -852,59 +892,61 @@ input::placeholder { color: var(--faint); font-style: italic; }
 
 .detail-rating .dots { padding-top: 0.75rem; font-size: 17px; }
 
-/* Label / value rows with hairlines between them */
-.archive { margin: 2rem 0 1.25rem; }
-
-.archive > div {
+/* Finished / Times read / Pages / Published side by side: a hairline across the top, a thin
+   upright line between each one, the label in red italics with its answer underneath */
+.archive {
   display: flex;
-  align-items: baseline;
-  gap: 2rem;
-  padding: 0.42rem 0;
-  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap; /* on a narrow screen the last ones move to a second line instead of squashing */
+  row-gap: 0.5rem;
+  margin: 1.2rem 0 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
 }
 
-.archive > div:last-child { border-bottom: 0; }
-.archive dt { flex: 0 0 130px; color: var(--accent); font-size: 1.2rem; font-style: italic; }
-.archive dd { font-size: 1.12rem; }
+.archive > div { flex: 1 1 auto; padding: 0 1.1rem; border-left: 1px solid var(--line); } /* the four share the full width evenly */
+.archive > div:first-child { padding-left: 0; border-left: 0; }
+.archive dt { color: var(--red); font-size: 1.1rem; font-style: italic; line-height: 1.3; }
+.archive dd { margin-top: 0.05rem; color: var(--hand-ink); font-family: var(--hand), "EB Garamond", serif; font-size: 1.1rem; line-height: 1.2; } /* the handwriting font (--hand) */
 
-/* "Thoughts": a large italic heading with a thin underline */
-.notes { margin-top: 2.5rem; }
+/* "Impressions": a small red wax seal, then a large red italic heading with a thin red underline,
+   centred. The review itself stays on the left. */
+.notes { margin-top: 2rem; text-align: center; }
+
+.notes-seal {
+  display: block;
+  width: 52px;
+  height: auto;
+  margin: 0 auto 0.6rem;
+}
 
 .notes-title {
   display: inline-block;
   margin-bottom: 1rem;
-  padding-bottom: 0.35rem;
-  border-bottom: 1px solid var(--accent);
+  padding-bottom: 0.2rem; /* the gap between the word and its underline */
+  border-bottom: 1px solid var(--red);
+  color: var(--red);
   font-size: 1.9rem;
   font-style: italic;
 }
 
 #detail-review {
-  color: var(--text);
+  color: var(--hand-ink);
+  text-align: left;
+  font-family: var(--hand), "EB Garamond", serif;
   font-size: 1.15rem;
-  line-height: 1.55;
+  line-height: 1.5;
   white-space: pre-line; /* turns the line breaks in the review into real line breaks */
-}
-
-/* A big decorative first letter, like the start of a chapter */
-#detail-review:not(.empty)::first-letter {
-  float: left;
-  margin: 0.06em 0.5rem 0 0;
-  color: var(--accent);
-  font-size: 4.2em;
-  line-height: 0.82;
 }
 
 #detail-review.empty { color: var(--faint); font-style: italic; }
 
-/* A favourite passage, straight under the detail rows: the quote in italics, with a thin
-   olive line down its left side */
+/* A favourite passage, straight under the detail rows: the quote in italics, with a big red
+   opening quotation mark above it */
 .excerpt { margin: 2.25rem 0 0; }
 
 .excerpt-text {
   margin: 0;
-  padding: 0.2rem 0 0.2rem 1.4rem;
-  border-left: 2px solid var(--accent);
+  padding: 0;
   color: var(--text);
   font-size: 1.2rem;
   font-style: italic;
@@ -913,7 +955,17 @@ input::placeholder { color: var(--faint); font-style: italic; }
 }
 
 /* Where the passage is from, e.g. "— p. 42" */
-.excerpt-cite { margin-top: 0.6rem; padding-left: 1.4rem; color: var(--muted); font-size: 1rem; }
+.excerpt-text::before {
+  content: "“"; /* a curly opening quotation mark */
+  display: block;
+  margin-bottom: 0.1rem;
+  color: var(--red);
+  font-size: 3.4rem;
+  font-style: normal;
+  line-height: 0.75;
+}
+
+.excerpt-cite { margin-top: 0.6rem; color: var(--muted); font-size: 1rem; text-align: right; } /* sits at the bottom right */
 .excerpt-cite:empty { display: none; }
 
 /* Round close button in the top-right corner; it turns a quarter turn on hover */
@@ -977,7 +1029,6 @@ input::placeholder { color: var(--faint); font-style: italic; }
   .year-books { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 20px; }
   .entry { max-width: none; } /* fill the column on phones */
   .entry-title { font-size: 19px; }
-  .entry-review { font-size: 15px; }
   .ph-title { font-size: 18px; }
   .cover-placeholder { padding: 12px 10px 10px 16px; }
   .ph-author { font-size: 10px; }
@@ -989,13 +1040,20 @@ input::placeholder { color: var(--faint); font-style: italic; }
 /* Book detail on phones and small tablets: one column, the cover centred above the text */
 @media (max-width: 760px) {
   .detail-inner { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding: 6vh 1.25rem 10vh; }
-  .detail-left { position: relative; top: 0; width: 220px; justify-self: center; } /* relative, not sticky: the card still positions itself inside the column */
-  .detail-left.has-photo { padding-bottom: 180px; }
-  .photo-slip { --photo-w: 220px; --hinge-inset: 25px; } /* a little smaller, so it stays on screen */
-  .detail-left { --cover-h: 330px; } /* the column is 220px wide on phones */
+  .detail-left { position: relative; top: 0; width: 160px; justify-self: center; } /* relative, not sticky: the card still positions itself inside the column */
+  .detail-left.has-photo { padding-bottom: 135px; }
+  .photo-slip { --photo-w: 170px; --hinge-inset: 20px; } /* smaller, so the book doesn't fill the whole first screen */
+  .detail-left { --cover-h: 240px; } /* the column is 160px wide on phones */
   .detail-title { font-size: 2.3rem; }
-  .archive dt { flex-basis: 100px; }
-  .archive > div { gap: 1rem; }
+  .notes-title { font-size: 1.7rem; }
+
+  /* Finished / Times read / Pages / Published as a neat 2 x 2 grid: two equal columns, with the
+     thin upright line only between the left and right column */
+  .archive { display: grid; grid-template-columns: 1fr 1fr; row-gap: 0.7rem; }
+  .archive > div { padding: 0 0 0 1rem; }
+  .archive > div:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .archive dt { font-size: 1rem; }
+  .archive dd { font-size: 1.05rem; }
   .detail-close { top: 1rem; right: 1rem; }
 }
 

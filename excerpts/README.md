@@ -1,6 +1,6 @@
 # Favourite passages
 
-A passage saved here appears in the book's pop-up straight under the details (Finished, Pages…), above "Thoughts".
+A passage saved here appears in the book's pop-up straight under the details (Finished, Pages…), above "Impressions".
 Books without a passage simply don't show one.
 
 - One plain text file per book, named by the book's Goodreads **Book Id**: `11429027.txt`.

@@ -135,8 +135,9 @@ function uniqueBooks(books) {
   return [...new Map(books.map((book) => [book.id || book, book])).values()];
 }
 
+// e.g. "22 Aug 2026" (day first, short month), for "Finished" in the book pop-up
 function longDate(date) {
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 // Same title -> same number, so a book's placeholder colour never changes between visits.
@@ -154,16 +155,12 @@ const SORTERS = {
   recent: (a, b) => time(b.dateRead) - time(a.dateRead) || time(b.dateAdded) - time(a.dateAdded),
   rating: (a, b) => b.rating - a.rating || SORTERS.recent(a, b),
   title: (a, b) => a.title.localeCompare(b.title),
-  author: (a, b) => a.authorSort.localeCompare(b.authorSort) || a.title.localeCompare(b.title),
-  pages: (a, b) => (b.pages || 0) - (a.pages || 0),
 };
 
 // The heading shown beside the books when they're NOT ordered by date (so not split into years)
 const SORT_HEADINGS = {
   rating: "Favourites first",
   title: "A to Z",
-  author: "By author",
-  pages: "Longest first",
 };
 
 function getVisibleBooks() {
@@ -276,7 +273,7 @@ function createPageStack(book) {
   return stack;
 }
 
-// One book: the cover, then title, author, rating stars, a line of the review and the date.
+// One book: the cover, then title, author, rating stars and the date. (The review is only in the pop-up.)
 // The date is created separately (book.dateLine) because its wording depends on the section.
 function createEntry(book) {
   // A <button> makes the whole entry clickable, focusable with Tab and openable with Enter/Space.
@@ -285,8 +282,6 @@ function createEntry(book) {
 
   const info = el("span", "entry-info");
   info.append(el("span", "entry-title", book.title), el("span", "author", book.author), createDots(book.rating));
-  // Only the start of the review: CSS cuts it off after three lines. The full text is in the detail view.
-  if (book.review) info.append(el("span", "entry-review", book.review));
   book.dateLine = el("span", "entry-date");
   info.append(book.dateLine);
 
@@ -704,14 +699,14 @@ function openDetail(book, from = null) {
   $("#detail-author").textContent = book.author;
   $("#detail-rating").replaceChildren(createDots(book.rating));
   $("#detail-read").textContent = book.shelf === "currently-reading"
-    ? "still reading"
-    : book.dateRead ? longDate(book.dateRead) : "not recorded";
+    ? "Still reading"
+    : book.dateRead ? longDate(book.dateRead) : "Not recorded";
   let times = timesInWords(book.readCount);
   if (book.readNumber) times += ` (this was the ${ordinal(book.readNumber)})`;
-  $("#detail-times").textContent = book.shelf === "currently-reading" ? "reading now" : times;
-  $("#detail-pages").textContent = book.pages ? book.pages.toLocaleString() : "unknown";
+  $("#detail-times").textContent = book.shelf === "currently-reading" ? "None" : times; // not finished yet, so not read any times
+  $("#detail-pages").textContent = book.pages ? book.pages.toLocaleString() : "Unknown";
   // Very old books have negative years in Goodreads (-600 means 600 BC)
-  $("#detail-year").textContent = !book.year ? "unknown" : book.year < 0 ? `${-book.year} BC` : book.year;
+  $("#detail-year").textContent = !book.year ? "Unknown" : book.year < 0 ? `${-book.year} BC` : book.year;
 
   renderNotes(book);
   setUpEditor(book); // only does anything in a browser unlocked for editing
@@ -813,7 +808,7 @@ function wireControls() {
 }
 
 // ---------- Edit mode ----------
-// Lets me edit a book's thoughts, passage and photo right here on the site. Saving sends the files
+// Lets me edit a book's impressions, passage and photo right here on the site. Saving sends the files
 // to GitHub (reviews/<id>.txt, excerpts/<id>.txt, photos/<id>.jpg) using the GitHub API; the
 // GitHub Action then rebuilds goodreads.csv and the site updates for everyone in a minute or two.
 //
@@ -935,7 +930,7 @@ async function saveEdits(event) {
   try {
     const changed = [];
     if (review !== book.review) {
-      if (await saveFile(`reviews/${id}.txt`, review ? textToBase64(review + "\n") : null, `Thoughts on ${what}`)) changed.push("thoughts");
+      if (await saveFile(`reviews/${id}.txt`, review ? textToBase64(review + "\n") : null, `Impressions of ${what}`)) changed.push("impressions");
     }
     if (excerpt !== book.excerpt) {
       if (await saveFile(`excerpts/${id}.txt`, excerpt ? textToBase64(excerpt + "\n") : null, `Passage from ${what}`)) changed.push("passage");

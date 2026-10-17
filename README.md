@@ -71,12 +71,12 @@ website, add a text file to the `reviews/` folder named by the book's Book Id, e
 
 To share a passage I love from a book, add a text file to the `excerpts/` folder named by the book's
 Book Id, e.g. `excerpts/52357.txt`. It appears in the book's pop-up straight under the details
-(Finished, Pages…), above "Thoughts". A last line starting with a dash (`— p. 42`) is shown as a small note saying where
+(Finished, Pages…), above "Impressions". A last line starting with a dash (`— p. 42`) is shown as a small note saying where
 it's from. See `excerpts/README.md`.
 
 ## Edit mode (editing on the website itself)
 
-I can edit a book's thoughts, passage and photo straight on the live site; visitors never see this.
+I can edit a book's impressions, passage and photo straight on the live site; visitors never see this.
 
 - **Unlock a device (once):** open `https://eleenuh.github.io/bookshelf/#edit` and paste my GitHub
   access key. The site checks it with GitHub and remembers it in that browser only.
