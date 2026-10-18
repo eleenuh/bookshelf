@@ -107,10 +107,6 @@ function timesInWords(n) {
   return n === 1 ? "Once" : n === 2 ? "Twice" : `${n} times`;
 }
 
-// 1 -> "first", 2 -> "second" … for labelling each read of a reread book
-const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
-const ordinal = (n) => ORDINALS[n - 1] || `${n}th`;
-
 // A reread book appears once per read (scripts/update_books.py adds a row for each earlier read).
 // Give each copy its place in the order: readNumber 1 = the first time, 2 = the second, and so on.
 function numberReads(books) {
@@ -319,13 +315,9 @@ function renderShelf(books) {
         book.item = el("li");
         book.item.append(createEntry(book));
       }
-      // Inside a year section the year is in the heading, so "finished Oct 4" is enough
-      let dateText = book.dateRead ? `finished ${shortDate(book.dateRead, !group.byYear)}` : "date not recorded";
-      // Rereads: "· first read", "· second read" on each copy. A book with a read count but only
-      // one copy (e.g. from a manual Goodreads export) says "· read twice" instead.
-      if (book.readNumber) dateText += ` · ${ordinal(book.readNumber)} read`;
-      else if (book.readCount > 1) dateText += ` · read ${timesInWords(book.readCount)}`;
-      book.dateLine.textContent = dateText;
+      // Inside a year section the year is in the heading, so "finished Oct 4" is enough.
+      // (Rereads aren't marked here; the book's pop-up says how many times I've read it.)
+      book.dateLine.textContent = book.dateRead ? `finished ${shortDate(book.dateRead, !group.byYear)}` : "date not recorded";
       list.append(book.item);
     }
 
@@ -701,8 +693,7 @@ function openDetail(book, from = null) {
   $("#detail-read").textContent = book.shelf === "currently-reading"
     ? "Still reading"
     : book.dateRead ? longDate(book.dateRead) : "Not recorded";
-  let times = timesInWords(book.readCount);
-  if (book.readNumber) times += ` (this was the ${ordinal(book.readNumber)})`;
+  const times = timesInWords(book.readCount);
   $("#detail-times").textContent = book.shelf === "currently-reading" ? "None" : times; // not finished yet, so not read any times
   $("#detail-pages").textContent = book.pages ? book.pages.toLocaleString() : "Unknown";
   // Very old books have negative years in Goodreads (-600 means 600 BC)

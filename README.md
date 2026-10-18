@@ -43,8 +43,8 @@ Things to keep in mind:
 
 ## Rereads
 
-A book I've read twice appears twice: once under each year I read it, labelled "first read" and
-"second read". The stats still count it as one book.
+A book I've read twice appears twice: once under each year I read it. Its pop-up says how many
+times I've read it. The stats still count it as one book.
 
 Goodreads only shares the date of the **latest** read, so the earlier reads are listed by hand in
 `rereads.csv`, one row per earlier read:

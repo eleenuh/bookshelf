@@ -44,7 +44,7 @@
 }
 
 :root {
-  --hand-ink: #001163; /* dark navy, like a ballpoint pen: the colour of the handwriting */
+  --hand-ink: #000c47; /* deep navy, like a ballpoint pen: the colour of all the handwriting */
   --hand: "WC Mano Negra"; /* the handwriting font on the book page (or "Biedermeier Kursiv", "DS Gabriele", "Mayonice", "High Empathy", "Royalty Free") */
 
   /* The four main colours */
@@ -151,14 +151,18 @@ button { cursor: pointer; }
   align-items: flex-start;
   gap: 40px;
 
-  /* Sticky: the left column scrolls normally until it reaches 64px from the top of the window,
-     then stays there while the books keep scrolling. align-self: start stops the grid from
-     stretching the column to the full page height (a full-height column would have nowhere to stick).
-     If the column is taller than the window, it gets its own scrollbar so nothing is cut off. */
+  /* Sticky: the left column stays put while the books scroll. align-self: start stops the grid
+     from stretching the column to the full page height (a full-height column would have nowhere
+     to stick). If the column is taller than the window (lots of "Reading now" books), it scrolls by
+     itself. Its box reaches the very top of the window (the 64px space is padding inside it, pulled
+     up over the page's own top padding), so its content slides off the window's edge just like the
+     books, instead of vanishing along an invisible line 64px down. */
   position: sticky;
-  top: 64px;
+  top: 0;
   align-self: start;
-  max-height: calc(100vh - 64px);
+  max-height: 100vh;
+  margin-top: -64px;
+  padding: 64px 0 48px; /* 48px at the bottom: room below the last item when scrolled to the end */
   overflow-y: auto;
   scrollbar-width: none; /* hide that scrollbar; the column still scrolls with the mouse wheel */
 }
@@ -229,6 +233,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
 }
 
 .stats-button:hover { color: var(--bg); background: var(--text); }
+.side > .stats-button { margin-top: -14px; } /* "reading stats" sits a little closer to the filters above it */
 
 /* Stats pop-up: label / number pairs in two columns */
 .stats {
@@ -328,6 +333,13 @@ input::placeholder { color: var(--faint); font-style: italic; }
 .year-heading.is-text { font-size: 26px; line-height: 1.1; }
 
 .year-count { color: var(--muted); font-size: 16px; font-style: italic; }
+
+/* On wide screens the year label stays in view while its books scroll past, then leaves with
+   the last row of that year (sticky only works inside its own year section). Narrower than
+   1150px the label drops above the books, where a sticky label would slide over the covers. */
+@media (min-width: 1150px) {
+  .year-label { position: sticky; top: 64px; }
+}
 
 /* The grid of books for one year. auto-fill fits as many cover-width columns as there's room for. */
 .year-books {
@@ -793,7 +805,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
 }
 
 /* A handwritten name, in blue-black ink */
-.hand { color: #3a4a6b; font-family: "Homemade Apple", cursive; font-size: 11px; }
+.hand { color: var(--hand-ink); font-family: "Homemade Apple", cursive; font-size: 11px; }
 
 /* ---- A photo tucked in the book ----
    photos/<Book Id>.jpg, if there is one (app.js shows .photo-slip only when the photo loads).
@@ -940,7 +952,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
 
 #detail-review.empty { color: var(--faint); font-style: italic; }
 
-/* A favourite passage, straight under the detail rows: the quote in italics, with a big red
+/* A favourite passage, straight under the detail rows: the quote in plain text, with a big red
    opening quotation mark above it */
 .excerpt { margin: 2.25rem 0 0; }
 
@@ -948,8 +960,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
   margin: 0;
   padding: 0;
   color: var(--text);
-  font-size: 1.2rem;
-  font-style: italic;
+  font-size: 1.15rem; /* the same size as the text under Impressions */
   line-height: 1.6;
   white-space: pre-line; /* keeps the passage's line breaks */
 }
@@ -1013,7 +1024,7 @@ input::placeholder { color: var(--faint); font-style: italic; }
   }
 
   /* On phones the left column sits above the books, so it scrolls away normally instead of sticking */
-  .side { gap: 28px; position: static; max-height: none; overflow: visible; }
+  .side { gap: 28px; position: static; max-height: none; margin-top: 0; padding: 0; overflow: visible; }
 
   /* The year sits above its books */
   .year-label { flex-basis: 100%; flex-direction: row; align-items: baseline; gap: 12px; }
@@ -1046,6 +1057,20 @@ input::placeholder { color: var(--faint); font-style: italic; }
   .detail-left { --cover-h: 240px; } /* the column is 160px wide on phones */
   .detail-title { font-size: 2.3rem; }
   .notes-title { font-size: 1.7rem; }
+
+  /* A more compact library card, so all of it (my name and the dates too) fits behind the smaller
+     cover; taking it out slides the book further down, so the name and date rows show */
+  .detail-left { --card-out: 0.58; } /* just far enough to show the first row (my name and date) */
+  .detail-left.has-photo.card-open { padding-bottom: max(135px, calc(var(--card-h, 300px) * var(--card-out) - var(--peek))); } /* room for whichever is lower: the photo or the moved book */
+  .library-card { left: 6px; right: 6px; padding: 8px 9px 10px; font-size: 10.5px; }
+  .card-callno { margin-bottom: 6px; }
+  .card-line { margin-top: 3px; gap: 5px; }
+  .card-label { width: 34px; font-size: 8px; }
+  .card-table { margin-top: 8px; }
+  .card-table th { padding: 3px 1px; font-size: 7.5px; }
+  .card-table td { height: 21px; }
+  .hand { font-size: 9.5px; }
+  .stamp { font-size: 8px; }
 
   /* Finished / Times read / Pages / Published as a neat 2 x 2 grid: two equal columns, with the
      thin upright line only between the left and right column */
