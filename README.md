@@ -78,7 +78,7 @@ it's from. See `excerpts/README.md`.
 
 I can edit a book's impressions, passage and photo straight on the live site; visitors never see this.
 
-- **Unlock a device (once):** open `https://eleenuh.github.io/bookshelf/#edit` and paste my GitHub
+- **Unlock a device (once):** open `https://eleenuh.github.io/#edit` and paste my GitHub
   access key. The site checks it with GitHub and remembers it in that browser only.
 - **Edit:** open any book, click **edit this book** at the bottom, change things, **save**. The
   site updates for everyone in a minute or two (photos are shrunk to 800px automatically).

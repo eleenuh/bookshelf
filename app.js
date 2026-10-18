@@ -817,16 +817,16 @@ function wireControls() {
 // and kept in this browser's localStorage. Without it there's no edit link, and GitHub would
 // refuse any save anyway. To unlock a device, open the site with #edit at the end of the address.
 
-const REPO = "eleenuh/bookshelf";
+const REPO = "eleenuh/eleenuh.github.io"; // the repository holding this site
 const BRANCH = "main";
-const KEY_STORE = "bookshelf-github-key";
+const KEY_STORE = "bookshelf-github-key"; // (kept from the old name, so already-unlocked browsers stay unlocked)
 const PHOTO_MAX_WIDTH = 800; // uploaded photos are shrunk to this width before saving
 
 function editKey() {
   try { return localStorage.getItem(KEY_STORE) || ""; } catch { return ""; }
 }
 
-// Ask GitHub to do something, using my key. path is like "repos/eleenuh/bookshelf/contents/x.txt".
+// Ask GitHub to do something, using my key. path is like "repos/eleenuh/eleenuh.github.io/contents/x.txt".
 async function github(path, options = {}) {
   const response = await fetch(`https://api.github.com/${path}`, {
     ...options,
